@@ -54,14 +54,17 @@ h1,h2,h3,h4 { font-family: 'Lexend', sans-serif; font-weight: 700; }
 }
 #loading-screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
 
-.loading-logo {
-  font-family: 'Lexend', sans-serif; font-size: 2.8rem; font-weight: 800;
-  background: linear-gradient(135deg, var(--primary-container), var(--primary));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text; margin-bottom: 6px;
+.loading-logo-img {
+  width: 96px; height: 96px; object-fit: contain;
+  border-radius: 20px; margin-bottom: 18px;
+  filter: drop-shadow(0 4px 16px rgba(0,70,199,0.25));
 }
-.loading-logo span { font-size: 1.1rem; font-weight: 500; vertical-align: super; margin-left: 3px; }
-.loading-subtitle { font-size: 0.88rem; color: var(--outline); margin-bottom: 36px; letter-spacing: 0.04em; }
+.loading-tagline {
+  font-family: 'Lexend', sans-serif; font-size: 1.05rem; font-weight: 600;
+  color: var(--on-surface); text-align: center; margin-bottom: 6px;
+  letter-spacing: 0.01em;
+}
+.loading-subtitle { font-size: 0.8rem; color: var(--outline); margin-bottom: 36px; letter-spacing: 0.06em; text-transform: uppercase; }
 .loading-spinner {
   width: 44px; height: 44px;
   border: 3px solid var(--surface-high);
