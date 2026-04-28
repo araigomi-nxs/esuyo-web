@@ -1441,3 +1441,111 @@ h1,h2,h3,h4 { font-family: 'Lexend', sans-serif; font-weight: 700; }
   transform: rotate(-45deg); transform-origin: bottom left;
 }
 .ride-map-marker span { transform: rotate(45deg); display: block; }
+
+/* ══════════════════════════════════════════════
+   Mobile Layout  (≤ 640px)
+   ══════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  :root {
+    --header-h: 52px;
+    --sidebar-w: 100%;
+    --builder-w: 100%;
+  }
+
+  /* ── Header ── */
+  #app-header { padding: 0 12px; gap: 8px; }
+  .header-divider,
+  .header-location,
+  .fare-era-wrap,
+  .status-badge,
+  #btn-refresh-pins,
+  #btn-export { display: none; }
+  .logo-text { font-size: 1.15rem; }
+  .badge.admin { display: none; }
+  .header-btn { padding: 6px 10px; font-size: 0.75rem; }
+
+  /* ── Sidebar → bottom sheet ── */
+  #sidebar {
+    left: 0; right: 0; bottom: 0; top: auto;
+    width: 100%; height: 60vh;
+    border-radius: var(--radius) var(--radius) 0 0;
+    transform: translateY(0); opacity: 1;
+  }
+  #sidebar.collapsed { transform: translateY(100%); opacity: 0; }
+
+  /* Toggle always visible on mobile, pinned bottom-left */
+  #sidebar-toggle {
+    display: flex !important;
+    top: auto; bottom: 20px; left: 16px;
+    z-index: 110;
+  }
+
+  /* ── Builder panel → bottom sheet ── */
+  #builder-panel {
+    left: 0; right: 0; bottom: 0; top: auto;
+    width: 100%; height: 88vh;
+    border-radius: var(--radius) var(--radius) 0 0;
+    transform: translateY(calc(100% + 20px));
+  }
+  #builder-panel.open { transform: translateY(0); }
+
+  /* ── Route detail → bottom sheet ── */
+  #route-detail {
+    left: 0; right: 0; bottom: 0; top: auto;
+    width: 100%; height: 72vh;
+    border-radius: var(--radius) var(--radius) 0 0;
+    transform: translateY(calc(100% + 20px));
+  }
+  #route-detail.visible { transform: translateY(0); }
+
+  /* ── Map controls ── */
+  #custom-controls { bottom: 16px; right: 12px; gap: 4px; }
+  .map-control-btn { width: 40px; height: 40px; border-radius: 10px; font-size: 0.95rem; }
+  .map-control-btn .label { display: none; }
+
+  /* ── Place search panel → full-width from top ── */
+  #place-search-panel {
+    left: 0; right: 0; top: var(--header-h);
+    width: 100%; max-width: 100%;
+    border-radius: 0 0 var(--radius) var(--radius);
+    transform: translateY(-12px);
+    max-height: calc(100vh - var(--header-h));
+  }
+  #place-search-panel.open { transform: translateY(0); }
+
+  /* ── Landmark filter panel ── */
+  #landmark-filter-panel {
+    left: 12px; right: 60px; width: auto; bottom: 72px;
+  }
+
+  /* ── Sim panel ── */
+  #sim-panel {
+    left: 12px; right: 12px; bottom: 12px;
+    transform: none; min-width: unset; max-width: unset; width: auto;
+  }
+
+  /* ── Ride panel ── */
+  .ride-panel { width: calc(100% - 24px); }
+
+  /* ── Reposition & edit-style bars ── */
+  #reposition-bar,
+  #edit-style-bar {
+    left: 12px; right: 12px; bottom: 16px;
+    transform: none; min-width: unset; width: auto;
+    flex-wrap: wrap; gap: 10px;
+  }
+  /* Fix slideUp animation for these bars on mobile (no translateX needed) */
+  #reposition-bar  { animation: slideUpMobile 0.2s ease; }
+  #edit-style-bar  { animation: slideUpMobile 0.2s ease; }
+  @keyframes slideUpMobile {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Modal ── */
+  .modal { width: calc(100vw - 40px); padding: 22px 18px 18px; }
+
+  /* ── Builder row wraps on narrow screens ── */
+  .builder-row { flex-wrap: wrap; }
+  .meta-field { min-width: calc(50% - 4px); }
+}

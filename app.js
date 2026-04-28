@@ -2826,7 +2826,6 @@ function enterRideMode() {
   const route = routes.find(r => r.id === activeRouteId);
   console.log('Using route:', route?.name);
   rideModeActive = true; _rideStep = 0;
-  document.getElementById('btn-ride-mode').classList.add('active');
   document.getElementById('ride-panel').classList.remove('hidden');
   document.getElementById('ride-step-indicator').textContent = `Route: ${route?.name || 'Unknown'} - Tap pickup`;
   _rideClickHandler = async (e) => {
@@ -2854,7 +2853,6 @@ function exitRideMode() {
   _ridePickupCoords = null; _rideDropoffCoords = null; _rideStep = 0;
   _clearRideRoute();
   map.getCanvas().style.cursor = '';
-  document.getElementById('btn-ride-mode').classList.remove('active');
   document.getElementById('ride-panel').classList.add('hidden');
   document.getElementById('ride-fare-card').classList.add('hidden');
   document.getElementById('ride-reset-btn').classList.add('hidden');
@@ -2935,7 +2933,6 @@ function bindEvents() {
   document.getElementById('es-bar-save').addEventListener('click', saveEditStyle);
   document.getElementById('es-bar-cancel').addEventListener('click', cancelEditStyle);
 
-  document.getElementById('btn-ride-mode').addEventListener('click', enterRideMode);
   document.getElementById('ride-close-btn').addEventListener('click', exitRideMode);
   document.getElementById('ride-reset-btn').addEventListener('click', resetRide);
   document.getElementById('ride-discount-cb')?.addEventListener('change', () => {
