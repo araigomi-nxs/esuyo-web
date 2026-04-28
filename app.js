@@ -464,15 +464,14 @@ function addTerrain() {
 
 function add3DBuildings() {
   try {
-    if (map.getSource('omf')) return;
+    if (map.getSource('esuyo-bld')) return;
 
-    map.addSource('omf', {
+    // Use TileJSON endpoint so MapLibre fetches tile metadata automatically.
+    map.addSource('esuyo-bld', {
       type: 'vector',
-      tiles: ['https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf'],
-      maxzoom: 14
+      url: 'https://tiles.openfreemap.org/planet'
     });
 
-    // Derived height — prefer pre-computed render_height, fall back to levels × 3.5 m, default 7 m (2 floors).
     const bldHeight = ['coalesce',
       ['get', 'render_height'],
       ['get', 'height'],
@@ -480,15 +479,17 @@ function add3DBuildings() {
     ];
     const bldBase = ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0];
 
+    // Insert before the first symbol layer so street labels render on top of buildings.
+    const firstSymbol = map.getStyle().layers.find(l => l.type === 'symbol');
+
     map.addLayer({
       id: 'bld-3d',
       type: 'fill-extrusion',
-      source: 'omf',
+      source: 'esuyo-bld',
       'source-layer': 'building',
       minzoom: 14,
+      filter: ['!=', ['get', 'hide_3d'], true],
       paint: {
-        // Cooler blue-grey tint that complements the CARTO light basemap.
-        // Taller buildings shift slightly darker so depth reads naturally.
         'fill-extrusion-color': [
           'interpolate', ['linear'],
           ['coalesce', ['get', 'render_height'], ['get', 'height'], 6],
@@ -498,8 +499,6 @@ function add3DBuildings() {
           60,  '#c2c9db',
           120, '#b6bfd4'
         ],
-
-        // "Grow-up" animation: buildings rise from the ground as you zoom in.
         'fill-extrusion-height': [
           'interpolate', ['linear'], ['zoom'],
           14, 0,
@@ -510,23 +509,17 @@ function add3DBuildings() {
           14, 0,
           15, bldBase
         ],
-
-        // Fade in as you zoom in; near-opaque at street level.
         'fill-extrusion-opacity': [
           'interpolate', ['linear'], ['zoom'],
           14, 0,
           14.5, 0.72,
           17, 0.88
         ],
-
-        // Vertical gradient darkens wall bases — free depth cue.
         'fill-extrusion-vertical-gradient': true,
-
-        // Ambient occlusion pools soft shadow at building bases (MapLibre ≥ 3).
         'fill-extrusion-ambient-occlusion-intensity': 0.45,
         'fill-extrusion-ambient-occlusion-radius': 4
       }
-    });
+    }, firstSymbol?.id);
   } catch (e) {
     console.error('3D buildings error:', e);
   }
