@@ -2467,6 +2467,7 @@ function _simFinish() {
   if (simAnimFrame) { cancelAnimationFrame(simAnimFrame); simAnimFrame = null; }
   document.getElementById('sim-play-pause').textContent = '↺ Restart';
   document.getElementById('sim-next-stop').textContent = 'End of route';
+  setTimeout(() => { if (simPaused && simProgress >= simTotalKm) stopSimulation(); }, 2000);
 }
 
 function startSimulation(routeId) {
