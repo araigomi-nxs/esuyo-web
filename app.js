@@ -287,9 +287,12 @@ function initMap() {
       sources: {
         basemap: {
           type: 'raster',
-          tiles: ['https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}@2x.png'],
-          tileSize: 512,
-          attribution: '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          // Esri World Light Gray Canvas — free, no API key, CORS open, clean grey style.
+          // Tile path uses {z}/{y}/{x} (Esri row/col order); MapLibre fills by name correctly.
+          tiles: ['https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Canvas/MapServer/tile/{z}/{y}/{x}'],
+          tileSize: 256,
+          maxzoom: 16,
+          attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
         }
       },
       layers: [{ id: 'basemap-layer', type: 'raster', source: 'basemap' }],
