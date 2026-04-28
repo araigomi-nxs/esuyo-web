@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>E-Suyo — Route Admin Panel</title>
+  <meta name="theme-color" content="#0046C7">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Loading -->
+  <div id="loading-screen">
+    <div class="loading-logo">E-<span>SUYO</span></div>
+    <div class="loading-subtitle">Route Admin Panel</div>
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Initializing map...</div>
+  </div>
+
+  <!-- Header -->
+  <header id="app-header">
+    <div class="header-left">
+      <div class="logo" id="logo-btn">
+        <img src="assets/esuyo_logo.png" alt="E-SUYO" style="height:28px;border-radius:4px;">
+        <div class="logo-text">E-SUYO <span class="badge admin">ADMIN</span></div>
+      </div>
+      <div class="header-divider"></div>
+      <div class="header-location"><span>📍</span> Legazpi City, Albay</div>
+    </div>
+    <div class="header-right">
+      <div class="status-badge">
+        <div class="status-dot"></div>
+        <span id="route-count">0</span> Routes
+      </div>
+      <div class="fare-era-wrap">
+        <div class="fare-era-toggle" id="fare-era-toggle" title="Toggle fare rates period">
+          <button class="fare-era-btn active" data-era="post2026">2026 Rates</button>
+          <button class="fare-era-btn" data-era="pre2026">Pre-2026</button>
+        </div>
+        <div class="fare-matrix-tooltip" id="fare-matrix-tooltip"></div>
+      </div>
+      <button class="header-btn" id="btn-sync-db" title="Save all routes to database">☁ Sync to DB</button>
+      <button class="header-btn" id="btn-export" title="Export routes as JSON">⬇ Export</button>
+    </div>
+  </header>
+
+  <!-- Map -->
+  <div id="map"></div>
+
+  <!-- Left Sidebar: Route Manager -->
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title-row">
+        <h2>Route Manager</h2>
+        <button class="btn-new-route" id="btn-new-route">+ New</button>
+      </div>
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="route-search" placeholder="Search routes..." autocomplete="off">
+      </div>
+      <div class="area-filter" id="area-filter">
+        <select id="af-town" class="af-select">
+          <option value="">All Towns</option>
+        </select>
+        <select id="af-barangay" class="af-select" disabled>
+          <option value="">All Barangays</option>
+        </select>
+        <button class="af-clear" id="af-clear" title="Clear filters" style="display:none">✕</button>
+      </div>
+    </div>
+
+    <div class="route-list" id="route-list"></div>
+
+    <div id="empty-state" class="empty-state hidden">
+      <div class="empty-icon">🗺️</div>
+      <p>No routes yet</p>
+      <p class="empty-sub">Click <strong>+ New</strong> to create your first route.</p>
+    </div>
+  </aside>
+
+  <!-- Sidebar Toggle -->
+  <button id="sidebar-toggle" title="Toggle Sidebar">☰</button>
+
+  <!-- Right Panel: Route Builder -->
+  <div id="builder-panel">
+    <div class="builder-header">
+      <div class="builder-title-row">
+        <h3 id="builder-title">New Route</h3>
+        <button class="btn-icon" id="builder-close">✕</button>
+      </div>
+      <input type="text" id="route-name-input" placeholder="Route name (e.g. Loop 1 – City Center)" class="input-route-name">
+      <div class="builder-row">
+        <div class="color-picker-wrap">
+          <label>Color</label>
+          <input type="color" id="route-color-input" value="#0046C7" class="input-color">
+        </div>
+        <div class="meta-field">
+          <label>Vehicle</label>
+          <select id="route-vehicle-input" class="input-meta">
+            <option value="puj">🚐 PUJ (Traditional)</option>
+            <option value="mpuj">🚌 MPUJ (Modern)</option>
+            <option value="pub-city">🚍 PUB City (Ordinary)</option>
+            <option value="pub-city-ac">🚍 PUBw/AC (City Aircon)</option>
+            <option value="uv-express">🚙 UV Express</option>
+          </select>
+        </div>
+        <div class="meta-field">
+          <label>Hours</label>
+          <input type="text" id="route-hours-input" value="5:00 AM – 9:00 PM" class="input-meta">
+        </div>
+        <div class="meta-field">
+          <label>Frequency</label>
+          <input type="text" id="route-freq-input" value="Every 10 min" class="input-meta">
+        </div>
+      </div>
+      <textarea id="route-desc-input" placeholder="Short description..." rows="2" class="input-desc"></textarea>
+    </div>
+
+    <div class="builder-section-header">
+      <div class="builder-instructions" id="builder-instructions">
+        <span class="pulse-dot"></span> Click map to add stops
+      </div>
+      <div class="builder-stops-meta">
+        <span id="stop-count-badge" class="badge-count">0 stops</span>
+        <button class="btn-loop" id="btn-close-loop" disabled title="Route back to first stop">⟳ Close Loop</button>
+      </div>
+    </div>
+
+    <div class="stops-list" id="stops-list">
+      <div class="stops-empty">Click anywhere on the map to place the first stop.</div>
+    </div>
+
+    <!-- Fare Summary -->
+    <div class="fare-summary" id="fare-summary">
+      <div class="fare-row">
+        <span>Total Distance</span>
+        <strong id="summary-distance">—</strong>
+      </div>
+      <div class="fare-row highlight">
+        <span>Fare Range</span>
+        <strong id="summary-fare">—</strong>
+      </div>
+      <button class="btn-text" id="btn-toggle-table">Show fare table ▾</button>
+      <div class="fare-table hidden" id="fare-table">
+        <table>
+          <thead>
+            <tr><th>Stop</th><th>Leg km</th><th>Total km</th><th>Fare ₱</th></tr>
+          </thead>
+          <tbody id="fare-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="builder-actions">
+      <button class="btn-cancel-builder" id="btn-cancel-builder">Cancel</button>
+      <button class="btn-save-route" id="btn-save-route">Save Route</button>
+    </div>
+  </div>
+
+  <!-- Route Detail Panel (view mode) -->
+  <div id="route-detail">
+    <div class="detail-header">
+      <button class="detail-close" id="detail-close">✕</button>
+      <div class="detail-route-name">
+        <div class="route-color-dot" id="detail-dot"></div>
+        <h3 id="detail-title"></h3>
+      </div>
+      <p class="detail-description" id="detail-desc"></p>
+    </div>
+    <div class="detail-stats" id="detail-stats"></div>
+    <div class="detail-stops">
+      <div class="detail-stops-title">Route Stops</div>
+      <div id="stops-timeline"></div>
+    </div>
+    <div class="detail-footer">
+      <div class="detail-schedule">
+        <div>
+          <div class="schedule-label">Operating Hours</div>
+          <div class="schedule-value" id="detail-hours"></div>
+        </div>
+        <div>
+          <div class="schedule-label">Frequency</div>
+          <div class="schedule-value" id="detail-frequency"></div>
+        </div>
+      </div>
+      <div class="detail-admin-actions">
+        <button class="btn-edit-route" id="btn-edit-route">✎ Edit</button>
+        <button class="btn-ride-from-route" id="btn-ride-from-route">🚐 Calculate Fare</button>
+        <button class="btn-simulate-route" id="btn-simulate-route">▶ Simulate</button>
+        <button class="btn-delete-route" id="btn-delete-detail">🗑 Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Map Controls -->
+  <div id="custom-controls">
+    <button class="map-control-btn" id="btn-add-place" title="Search & Add Landmark">
+      <span>＋</span><span class="label">Add Place</span>
+    </button>
+    <button class="map-control-btn" id="btn-ride-mode" title="Jeepney Fare Calculator">
+      <span>🚌</span><span class="label">Ride</span>
+    </button>
+    <button class="map-control-btn" id="btn-barangays" title="Show Barangay Boundaries">
+      <span>🗺️</span><span class="label">Barangays</span>
+    </button>
+    <button class="map-control-btn" id="btn-landmarks" title="Show Landmarks">
+      <span>📍</span><span class="label">Points</span>
+    </button>
+    <button class="map-control-btn" id="btn-landmark-filter" title="Filter Landmark Types">
+      <span>🔽</span><span class="label">Filter</span>
+    </button>
+    <button class="map-control-btn active" id="btn-3d" title="Toggle 3D">
+      <span>🌐</span><span class="label">3D</span>
+    </button>
+    <button class="map-control-btn" id="btn-reset" title="Reset View">
+      <span>⟳</span><span class="label">Reset</span>
+    </button>
+  </div>
+
+  <!-- Place Search Panel -->
+  <div id="place-search-panel">
+    <div class="ps-header">
+      <div class="ps-title">
+        <span class="ps-title-icon">🔍</span>
+        <h3>Add Landmark</h3>
+      </div>
+      <button class="btn-icon" id="ps-close">✕</button>
+    </div>
+    <div class="ps-body">
+      <div class="ps-search-wrap">
+        <input type="text" id="ps-input" placeholder="e.g. Legazpi City Hall" autocomplete="off" spellcheck="false">
+        <button class="ps-search-btn" id="ps-search-btn">Search</button>
+      </div>
+      <div class="ps-results" id="ps-results"></div>
+      <div class="ps-hint" id="ps-hint">Type a place name and press Search. Pick a result to preview it, then save it to your database.</div>
+      <div class="ps-preview hidden" id="ps-preview">
+        <div class="ps-field">
+          <label>Name</label>
+          <input type="text" id="ps-name" class="ps-name-input">
+        </div>
+        <div class="ps-field">
+          <label>Address</label>
+          <div class="ps-text" id="ps-address"></div>
+        </div>
+        <div class="ps-field">
+          <label>Coordinates <span class="ps-drag-hint">· drag pin to adjust</span></label>
+          <div class="ps-text ps-coords" id="ps-coords"></div>
+        </div>
+        <div class="ps-field">
+          <label>Category</label>
+          <select id="ps-category" class="ps-select">
+            <option value="landmark">📍 Landmark</option>
+            <option value="gov">🏛️ Government</option>
+            <option value="hospital">🏥 Hospital</option>
+            <option value="school">🏫 School / University</option>
+            <option value="mall">🛍️ Mall</option>
+            <option value="church">⛪ Church</option>
+            <option value="terminal">🚌 Terminal</option>
+            <option value="market">🛒 Market</option>
+            <option value="park">🌳 Park</option>
+            <option value="bank">🏦 Bank</option>
+            <option value="airport">✈️ Airport</option>
+            <option value="port">⚓ Port</option>
+            <option value="7eleven">🏪 7-Eleven</option>
+            <option value="factory">🏭 Factory</option>
+            <option value="gasstation">⛽ Gasoline Station</option>
+            <option value="fastfood">🍔 Fast Food</option>
+            <option value="restaurant">🍽️ Restaurant</option>
+          </select>
+        </div>
+        <div class="ps-style-row" style="display:none">
+          <div class="ps-field ps-field-color">
+            <label>Pin Color</label>
+            <input type="color" id="ps-color-input" value="#673AB7" class="ps-color-swatch">
+          </div>
+          <div class="ps-field ps-field-icon">
+            <label>Icon <span class="ps-icon-hint">emoji/text</span></label>
+            <input type="text" id="ps-icon-input" placeholder="📍" maxlength="4" class="ps-icon-input">
+          </div>
+        </div>
+        <div class="ps-actions">
+          <button class="ps-btn-save" id="ps-save">Save to Map</button>
+          <button class="ps-btn-discard" id="ps-discard">Discard</button>
+        </div>
+      </div>
+    </div>
+    <div id="gp-attribution" style="display:none"></div>
+  </div>
+
+  <!-- Ride Mode Panel -->
+  <div id="ride-panel" class="ride-panel hidden">
+    <div class="ride-panel-header">
+      <div class="ride-panel-title"><span>🚌</span><span>Jeepney Fare</span></div>
+      <button class="ride-close-btn" id="ride-close-btn">✕</button>
+    </div>
+    <div class="ride-step-indicator" id="ride-step-indicator">Tap your pickup point on the map</div>
+    <div class="ride-points">
+      <div class="ride-point-row">
+        <div class="ride-point-badge pickup">A</div>
+        <div class="ride-point-detail">
+          <div class="ride-point-label">Pickup</div>
+          <div class="ride-point-address" id="ride-pickup-addr">—</div>
+        </div>
+      </div>
+      <div class="ride-connector-line"></div>
+      <div class="ride-point-row">
+        <div class="ride-point-badge dropoff">B</div>
+        <div class="ride-point-detail">
+          <div class="ride-point-label">Drop-off</div>
+          <div class="ride-point-address" id="ride-dropoff-addr">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="ride-slider-container hidden" id="ride-slider-container">
+      <div class="ride-slider-label">Drag to set drop-off point along route</div>
+      <input type="range" class="ride-slider" id="ride-slider" min="0" max="100" value="100">
+      <div class="ride-slider-stops" id="ride-slider-stops"></div>
+    </div>
+    <div class="ride-fare-card hidden" id="ride-fare-card">
+      <div class="ride-fare-stat">
+        <div class="ride-fare-val" id="ride-dist-val">—</div>
+        <div class="ride-fare-lbl">Distance</div>
+      </div>
+      <div class="ride-fare-divider"></div>
+      <div class="ride-fare-stat">
+        <div class="ride-fare-val accent" id="ride-fare-val">—</div>
+        <div class="ride-fare-lbl">Jeepney Fare</div>
+      </div>
+      <label class="ride-discount-toggle">
+        <input type="checkbox" id="ride-discount-cb">
+        <span>20% Discount (Senior/PWD)</span>
+      </label>
+    </div>
+    <button class="ride-reset-btn hidden" id="ride-reset-btn">↺ New Ride</button>
+  </div>
+
+  <!-- Reposition Bar -->
+  <div id="reposition-bar" class="hidden">
+    <div class="rp-bar-info">
+      <span class="rp-bar-icon">📍</span>
+      <div>
+        <div class="rp-bar-name" id="rp-bar-name"></div>
+        <div class="rp-bar-coords" id="rp-bar-coords"></div>
+      </div>
+    </div>
+    <div class="rp-bar-actions">
+      <button class="rp-bar-save" id="rp-bar-save">Save Position</button>
+      <button class="rp-bar-cancel" id="rp-bar-cancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Edit Style Bar -->
+  <div id="edit-style-bar" class="hidden">
+    <div class="es-bar-info">
+      <span class="es-bar-icon">🎨</span>
+      <div class="es-bar-name" id="es-bar-name"></div>
+    </div>
+    <div class="es-bar-fields">
+      <div class="es-field">
+        <label>Color</label>
+        <input type="color" id="es-color-input" value="#673AB7">
+      </div>
+      <div class="es-field">
+        <label>Icon</label>
+        <input type="text" id="es-icon-input" placeholder="📍" maxlength="4" class="es-icon-input">
+      </div>
+    </div>
+    <div class="es-bar-actions">
+      <button class="es-bar-save" id="es-bar-save">Save Style</button>
+      <button class="es-bar-cancel" id="es-bar-cancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Landmark Filter Panel -->
+  <div id="landmark-filter-panel" class="hidden">
+    <div class="lf-header">
+      <span class="lf-title">Filter Landmarks</span>
+      <div class="lf-header-actions">
+        <button class="lf-all-btn" id="lf-show-all">All</button>
+        <button class="lf-all-btn" id="lf-hide-all">None</button>
+        <button class="lf-close-btn" id="lf-close">✕</button>
+      </div>
+    </div>
+    <div class="lf-chips" id="lf-chips"></div>
+  </div>
+
+  <!-- Simulation Control Panel -->
+  <div id="sim-panel" class="hidden">
+    <div class="sim-header">
+      <div class="sim-route-info">
+        <div class="sim-dot" id="sim-dot"></div>
+        <span class="sim-name" id="sim-name"></span>
+        <span id="sim-vtag"></span>
+      </div>
+      <button class="sim-end-btn" id="sim-end-btn">■ End</button>
+    </div>
+    <div class="sim-stop-row">
+      <span class="sim-stop-lbl">Next stop</span>
+      <span class="sim-stop-val" id="sim-next-stop">—</span>
+    </div>
+    <div class="sim-progress-wrap">
+      <div class="sim-progress-track"><div class="sim-progress-fill" id="sim-progress-fill"></div></div>
+      <span class="sim-progress-label" id="sim-progress-label">0.0 / 0.0 km</span>
+    </div>
+    <div class="sim-controls">
+      <button class="sim-ctrl-btn" id="sim-slower">−</button>
+      <span class="sim-speed-label" id="sim-speed-label">40 km/h</span>
+      <button class="sim-ctrl-btn" id="sim-faster">+</button>
+      <button class="sim-ctrl-btn sim-play-pause" id="sim-play-pause">⏸</button>
+      <label class="sim-follow-label">
+        <input type="checkbox" id="sim-follow" checked> Follow
+      </label>
+    </div>
+  </div>
+
+  <!-- Delete Modal -->
+  <div id="modal-overlay" class="hidden">
+    <div class="modal">
+      <h3>Delete Route?</h3>
+      <p id="modal-msg">This will permanently remove this route.</p>
+      <div class="modal-actions">
+        <button class="btn-cancel-builder" id="modal-cancel">Cancel</button>
+        <button class="btn-delete-confirm" id="modal-confirm">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="legazpi-barangays.js"></script>
+  <script src="app.js"></script>
+  <!-- Google Places — uses the recommended bootstrap loader -->
+  <script>
+    (function loadGooglePlaces() {
+      const key = window.ESUYO_CONFIG?.GOOGLE_PLACES_API_KEY;
+      if (!key || key.startsWith('your-')) return;
+      // Google-recommended bootstrap loader (avoids "loaded directly" warning)
+      ((g)=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await(a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n));})({ key, v: 'weekly' });
+      google.maps.importLibrary('places').then(() => { window.googlePlacesReady = true; });
+    })();
+  </script>
+</body>
+</html>
