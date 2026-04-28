@@ -458,9 +458,9 @@ function addTerrain() {
 
     map.setTerrain({ source: 'terrain-dem', exaggeration: 0.65 });
 
-    // High-altitude soft light — minimises dark side-faces on 3D extrusions.
-    // position: [radial dist, azimuth °, polar/altitude °] — 75° = nearly overhead.
-    map.setLight({ anchor: 'map', color: '#ffffff', intensity: 0.15, position: [1.5, 315, 75] });
+    // Directional light from northwest at 45° — creates clear side-face contrast on 3D buildings.
+    // position: [radial dist, azimuth °, polar/altitude °]
+    map.setLight({ anchor: 'map', color: '#fff8f0', intensity: 0.4, position: [1.5, 315, 45] });
 
     map.addLayer({
       id: 'sky-layer',
@@ -478,22 +478,72 @@ function addTerrain() {
 
 function add3DBuildings() {
   try {
+    if (map.getSource('omf')) return;
+
     map.addSource('omf', {
       type: 'vector',
       tiles: ['https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf'],
       maxzoom: 14
     });
+
+    // Derived height — prefer pre-computed render_height, fall back to levels × 3.5 m, default 7 m (2 floors).
+    const bldHeight = ['coalesce',
+      ['get', 'render_height'],
+      ['get', 'height'],
+      ['*', ['coalesce', ['get', 'levels'], 2], 3.5]
+    ];
+    const bldBase = ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0];
+
     map.addLayer({
-      id: 'bld-3d', type: 'fill-extrusion',
-      source: 'omf', 'source-layer': 'building', minzoom: 13,
+      id: 'bld-3d',
+      type: 'fill-extrusion',
+      source: 'omf',
+      'source-layer': 'building',
+      minzoom: 14,
       paint: {
-        'fill-extrusion-color': '#c8cdd5',
-        'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['*', ['coalesce', ['get', 'levels'], 2], 3.5]],
-        'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-        'fill-extrusion-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 14, 0.55, 16, 0.8]
+        // Cooler blue-grey tint that complements the CARTO light basemap.
+        // Taller buildings shift slightly darker so depth reads naturally.
+        'fill-extrusion-color': [
+          'interpolate', ['linear'],
+          ['coalesce', ['get', 'render_height'], ['get', 'height'], 6],
+          0,   '#e4e8f0',
+          12,  '#d8dde8',
+          30,  '#cdd3e2',
+          60,  '#c2c9db',
+          120, '#b6bfd4'
+        ],
+
+        // "Grow-up" animation: buildings rise from the ground as you zoom in.
+        'fill-extrusion-height': [
+          'interpolate', ['linear'], ['zoom'],
+          14, 0,
+          15, bldHeight
+        ],
+        'fill-extrusion-base': [
+          'interpolate', ['linear'], ['zoom'],
+          14, 0,
+          15, bldBase
+        ],
+
+        // Fade in as you zoom in; near-opaque at street level.
+        'fill-extrusion-opacity': [
+          'interpolate', ['linear'], ['zoom'],
+          14, 0,
+          14.5, 0.72,
+          17, 0.88
+        ],
+
+        // Vertical gradient darkens wall bases — free depth cue.
+        'fill-extrusion-vertical-gradient': true,
+
+        // Ambient occlusion pools soft shadow at building bases (MapLibre ≥ 3).
+        'fill-extrusion-ambient-occlusion-intensity': 0.45,
+        'fill-extrusion-ambient-occlusion-radius': 4
       }
     });
-  } catch {}
+  } catch (e) {
+    console.error('3D buildings error:', e);
+  }
 }
 
 
@@ -2502,8 +2552,15 @@ function _bearingBetween([lng1, lat1], [lng2, lat2]) {
 }
 
 function _posAtProgress(prog) {
-  if (prog <= 0) return { lngLat: simCoords[0], bearing: 0 };
-  if (prog >= simTotalKm) return { lngLat: simCoords[simCoords.length - 1], bearing: 0 };
+  const n = simCoords.length;
+  if (prog <= 0) return {
+    lngLat: simCoords[0],
+    bearing: n > 1 ? _bearingBetween(simCoords[0], simCoords[1]) : 0
+  };
+  if (prog >= simTotalKm) return {
+    lngLat: simCoords[n - 1],
+    bearing: n > 1 ? _bearingBetween(simCoords[n - 2], simCoords[n - 1]) : 0
+  };
   let lo = 0, hi = simCumDist.length - 1;
   while (lo < hi - 1) { const mid = (lo + hi) >> 1; simCumDist[mid] <= prog ? lo = mid : hi = mid; }
   const t = (prog - simCumDist[lo]) / (simCumDist[hi] - simCumDist[lo]);
@@ -2512,6 +2569,13 @@ function _posAtProgress(prog) {
     lngLat: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t],
     bearing: _bearingBetween(a, b)
   };
+}
+
+function _updateSimMarkerRotation() {
+  if (!simMarker) return;
+  const { bearing } = _posAtProgress(simProgress);
+  const img = simMarker.getElement().querySelector('.sim-jeep-img');
+  if (img) img.style.transform = `rotate(${bearing - map.getBearing()}deg)`;
 }
 
 function _simNextStopName() {
@@ -2531,8 +2595,9 @@ function _simTick(ts) {
     if (simProgress >= simTotalKm) { simProgress = simTotalKm; _simFinish(); return; }
   }
   simLastTs = ts;
-  const { lngLat, bearing } = _posAtProgress(simProgress);
+  const { lngLat } = _posAtProgress(simProgress);
   simMarker.setLngLat(lngLat);
+  _updateSimMarkerRotation();
   if (document.getElementById('sim-follow')?.checked) map.easeTo({ center: lngLat, duration: 80 });
   const pct = (simProgress / simTotalKm) * 100;
   document.getElementById('sim-progress-fill').style.width = pct + '%';
@@ -2571,6 +2636,8 @@ function startSimulation(routeId) {
   el.className = 'sim-marker';
   el.innerHTML = `<img src="assets/jeep.png" class="sim-jeep-img" draggable="false">`;
   simMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(simCoords[0]).addTo(map);
+  _updateSimMarkerRotation();
+  map.on('rotate', _updateSimMarkerRotation);
   // Panel
   document.getElementById('sim-dot').style.background = route.color;
   document.getElementById('sim-name').textContent = route.name;
@@ -2589,6 +2656,7 @@ function startSimulation(routeId) {
 
 function stopSimulation() {
   simActive = false; simPaused = false;
+  map.off('rotate', _updateSimMarkerRotation);
   if (simAnimFrame) { cancelAnimationFrame(simAnimFrame); simAnimFrame = null; }
   if (simMarker) { simMarker.remove(); simMarker = null; }
   document.getElementById('sim-panel')?.classList.add('hidden');
