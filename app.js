@@ -282,22 +282,7 @@ function saveRoutes() {
 function initMap() {
   map = new maplibregl.Map({
     container: 'map',
-    style: {
-      version: 8,
-      sources: {
-        basemap: {
-          type: 'raster',
-          // Esri World Light Gray Canvas — free, no API key, CORS open, clean grey style.
-          // Tile path uses {z}/{y}/{x} (Esri row/col order); MapLibre fills by name correctly.
-          tiles: ['https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Canvas/MapServer/tile/{z}/{y}/{x}'],
-          tileSize: 256,
-          maxzoom: 16,
-          attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
-        }
-      },
-      layers: [{ id: 'basemap-layer', type: 'raster', source: 'basemap' }],
-      glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf'
-    },
+    style: 'https://tiles.openfreemap.org/styles/positron',
     center: MAP_CENTER, zoom: INITIAL_ZOOM,
     pitch: INITIAL_PITCH, bearing: INITIAL_BEARING,
     maxZoom: 18, minZoom: 10, antialias: true,
