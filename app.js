@@ -18,16 +18,14 @@ function _applyRole(role) {
 
 function initAuth() {
   return new Promise(resolve => {
+    const overlay = document.getElementById('auth-overlay');
     const stored = sessionStorage.getItem('esuyo_role');
-    if (stored) { _applyRole(stored); resolve(); return; }
-
-    const overlay  = document.getElementById('auth-overlay');
+    if (stored) { _applyRole(stored); overlay.classList.add('hidden'); resolve(); return; }
     const pwInput  = document.getElementById('auth-password');
     const errMsg   = document.getElementById('auth-error');
     const btnLogin = document.getElementById('auth-btn-login');
     const btnView  = document.getElementById('auth-btn-viewer');
 
-    overlay.classList.remove('hidden');
     setTimeout(() => pwInput.focus(), 60);
 
     function tryLogin() {
@@ -433,19 +431,23 @@ function addTerrain() {
       });
     }
 
-    map.addSource('terrain-dem', {
+    const demSourceSpec = {
       type: 'raster-dem',
       tiles: ['dem-filtered://{z}/{x}/{y}.png'],
       encoding: 'terrarium',
       tileSize: 256,
       maxzoom: 14,
       attribution: 'Terrain: Mapzen/AWS'
-    });
+    };
+
+    // MapLibre requires separate sources for hillshade and setTerrain to avoid rendering artefacts.
+    map.addSource('terrain-dem',    demSourceSpec);
+    map.addSource('terrain-dem-hs', demSourceSpec);
 
     map.addLayer({
       id: 'terrain-hillshade',
       type: 'hillshade',
-      source: 'terrain-dem',
+      source: 'terrain-dem-hs',
       paint: {
         'hillshade-exaggeration': 0.3,
         'hillshade-shadow-color': '#8a9bb0',
