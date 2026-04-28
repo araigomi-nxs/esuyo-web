@@ -464,13 +464,7 @@ function addTerrain() {
 
 function add3DBuildings() {
   try {
-    if (map.getSource('esuyo-bld')) return;
-
-    // Use TileJSON endpoint so MapLibre fetches tile metadata automatically.
-    map.addSource('esuyo-bld', {
-      type: 'vector',
-      url: 'https://tiles.openfreemap.org/planet'
-    });
+    if (map.getLayer('bld-3d')) return;
 
     const bldHeight = ['coalesce',
       ['get', 'render_height'],
@@ -479,13 +473,15 @@ function add3DBuildings() {
     ];
     const bldBase = ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0];
 
+    // The positron style already loads OpenFreeMap tiles as source 'openmaptiles'.
+    // Reuse it — no need for a second source pointing to the same TileJSON.
     // Insert before the first symbol layer so street labels render on top of buildings.
     const firstSymbol = map.getStyle().layers.find(l => l.type === 'symbol');
 
     map.addLayer({
       id: 'bld-3d',
       type: 'fill-extrusion',
-      source: 'esuyo-bld',
+      source: 'openmaptiles',
       'source-layer': 'building',
       minzoom: 14,
       filter: ['!=', ['get', 'hide_3d'], true],
