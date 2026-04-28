@@ -2867,6 +2867,13 @@ function bindEvents() {
   document.getElementById('btn-new-route').addEventListener('click', () => openBuilder());
   document.getElementById('route-search').addEventListener('input', e => renderRouteList(e.target.value));
   document.getElementById('btn-sync-db').addEventListener('click', syncRoutesToDB);
+  document.getElementById('btn-refresh-pins').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-refresh-pins');
+    btn.disabled = true; btn.textContent = '↻ Loading…';
+    _clearLandmarkCache();
+    await fetchLandmarksFromDB(true);
+    btn.disabled = false; btn.textContent = '↻ Refresh Pins';
+  });
   document.getElementById('fare-era-toggle').addEventListener('click', (e) => {
     const btn = e.target.closest('.fare-era-btn');
     if (!btn) return;
