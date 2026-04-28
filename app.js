@@ -285,18 +285,14 @@ function initMap() {
     style: {
       version: 8,
       sources: {
-        carto: {
+        basemap: {
           type: 'raster',
-          tiles: [
-            'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-            'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-            'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png'
-          ],
+          tiles: ['https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}@2x.png'],
           tileSize: 512,
-          attribution: '&copy; CARTO &copy; OpenStreetMap'
+          attribution: '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         }
       },
-      layers: [{ id: 'carto-layer', type: 'raster', source: 'carto' }],
+      layers: [{ id: 'basemap-layer', type: 'raster', source: 'basemap' }],
       glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf'
     },
     center: MAP_CENTER, zoom: INITIAL_ZOOM,
