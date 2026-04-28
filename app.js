@@ -2950,6 +2950,15 @@ function bindEvents() {
   document.getElementById('lf-close').addEventListener('click', toggleLandmarkFilter);
   document.getElementById('lf-show-all').addEventListener('click', () => setAllLandmarkCategories(true));
   document.getElementById('lf-hide-all').addEventListener('click', () => setAllLandmarkCategories(false));
+  document.getElementById('lf-refresh').addEventListener('click', async () => {
+    const btn = document.getElementById('lf-refresh');
+    btn.disabled = true;
+    btn.textContent = '↻ Loading…';
+    _clearLandmarkCache();
+    await fetchLandmarksFromDB(true);
+    btn.disabled = false;
+    btn.textContent = '↻ Refresh';
+  });
   document.getElementById('btn-3d').addEventListener('click', toggle3D);
   document.getElementById('btn-reset').addEventListener('click', () => {
     hideRouteDetail();
