@@ -282,7 +282,7 @@ function saveRoutes() {
 function initMap() {
   map = new maplibregl.Map({
     container: 'map',
-    style: 'https://tiles.openfreemap.org/styles/positron',
+    style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
     center: MAP_CENTER, zoom: INITIAL_ZOOM,
     pitch: INITIAL_PITCH, bearing: INITIAL_BEARING,
     maxZoom: 18, minZoom: 10, antialias: true,
@@ -446,7 +446,7 @@ function addTerrain() {
 
     // Directional light from northwest at 45° — creates clear side-face contrast on 3D buildings.
     // position: [radial dist, azimuth °, polar/altitude °]
-    map.setLight({ anchor: 'map', color: '#fff8f0', intensity: 0.4, position: [1.5, 315, 45] });
+    map.setLight({ anchor: 'map', color: '#ffffff', intensity: 0.35, position: [1.5, 315, 45] });
 
     map.addLayer({
       id: 'sky-layer',
@@ -466,50 +466,46 @@ function add3DBuildings() {
   try {
     if (map.getLayer('bld-3d')) return;
 
-    const bldHeight = ['coalesce',
-      ['get', 'render_height'],
-      ['get', 'height'],
-      ['*', ['coalesce', ['get', 'levels'], 2], 3.5]
-    ];
-    const bldBase = ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0];
+    // CARTO style doesn't include building height data — add MapTiler as a separate source.
+    // Most Philippine OSM buildings lack height tags → fall back to 8 m (≈2-storey).
+    if (!map.getSource('esuyo-bld')) {
+      const key = window.ESUYO_CONFIG.MAPTILER_KEY;
+      map.addSource('esuyo-bld', {
+        type: 'vector',
+        url: `https://api.maptiler.com/tiles/v3/tiles.json?key=${key}`
+      });
+    }
 
-    // The positron style already loads OpenFreeMap tiles as source 'openmaptiles'.
-    // Reuse it — no need for a second source pointing to the same TileJSON.
-    // Insert before the first symbol layer so street labels render on top of buildings.
+    const bldHeight = ['coalesce', ['to-number', ['get', 'render_height']], ['to-number', ['get', 'height']], 8];
+    const bldBase   = ['coalesce', ['to-number', ['get', 'render_min_height']], 0];
+
+    // Insert before the first symbol layer so road/place labels float above buildings.
     const firstSymbol = map.getStyle().layers.find(l => l.type === 'symbol');
 
     map.addLayer({
       id: 'bld-3d',
       type: 'fill-extrusion',
-      source: 'openmaptiles',
+      source: 'esuyo-bld',
       'source-layer': 'building',
-      minzoom: 14,
-      filter: ['!=', ['get', 'hide_3d'], true],
+      minzoom: 13,
       paint: {
-        'fill-extrusion-color': [
-          'interpolate', ['linear'],
-          ['coalesce', ['get', 'render_height'], ['get', 'height'], 6],
-          0,   '#e4e8f0',
-          12,  '#d8dde8',
-          30,  '#cdd3e2',
-          60,  '#c2c9db',
-          120, '#b6bfd4'
-        ],
+        'fill-extrusion-color': '#c8c8c8',
+        // Grow-up completes at zoom 13 so buildings are fully extruded at the app's default zoom 13.2.
         'fill-extrusion-height': [
           'interpolate', ['linear'], ['zoom'],
-          14, 0,
-          15, bldHeight
+          12, 0,
+          13, bldHeight
         ],
         'fill-extrusion-base': [
           'interpolate', ['linear'], ['zoom'],
-          14, 0,
-          15, bldBase
+          12, 0,
+          13, bldBase
         ],
         'fill-extrusion-opacity': [
           'interpolate', ['linear'], ['zoom'],
-          14, 0,
-          14.5, 0.72,
-          17, 0.88
+          12, 0,
+          13, 0.85,
+          17, 0.95
         ],
         'fill-extrusion-vertical-gradient': true,
         'fill-extrusion-ambient-occlusion-intensity': 0.45,
@@ -809,6 +805,7 @@ function addBarangayLayers() {
     layout: {
       visibility: 'none',
       'text-field': ['get', 'name'],
+      'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
       'text-size': 11,
       'text-anchor': 'center',
       'text-allow-overlap': false,
