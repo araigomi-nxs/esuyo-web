@@ -808,7 +808,8 @@ const LANDMARK_COLORS = {
   bank: '#4CAF50', market: '#FF5722', park: '#8BC34A', landmark: '#673AB7',
   '711': '#00703c', '7eleven': '#00703c',
   factory: '#546E7A', gasstation: '#F57F17',
-  fastfood: '#E65100', restaurant: '#6D4C41'
+  fastfood: '#E65100', restaurant: '#6D4C41',
+  cafe: '#795548', accommodation: '#0288D1', viewpoint: '#F06292'
 };
 
 const LANDMARK_ICONS = {
@@ -817,7 +818,8 @@ const LANDMARK_ICONS = {
   bank: '🏦', market: '🛒', park: '🌳', landmark: '📍',
   '711': '7', '7eleven': '7',
   factory: '🏭', gasstation: '⛽',
-  fastfood: '🍔', restaurant: '🍽️'
+  fastfood: '🍔', restaurant: '🍽️',
+  cafe: '☕', accommodation: '🛏️', viewpoint: '📸'
 };
 
 let landmarksVisible = true;
@@ -843,7 +845,8 @@ const LF_LABELS = {
   gov: 'Government', terminal: 'Terminal', airport: 'Airport', port: 'Port',
   bank: 'Bank', market: 'Market', park: 'Park', landmark: 'Landmark',
   '7eleven': '7-Eleven', factory: 'Factory', gasstation: 'Gas Station',
-  fastfood: 'Fast Food', restaurant: 'Restaurant'
+  fastfood: 'Fast Food', restaurant: 'Restaurant',
+  cafe: 'Cafe', accommodation: 'Accommodation', viewpoint: 'Viewpoint'
 };
 
 function initLandmarkFilter() {
