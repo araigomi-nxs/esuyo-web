@@ -32,7 +32,7 @@
     <div class="header-left">
       <div class="logo" id="logo-btn">
         <img src="assets/esuyo_logo.png" alt="E-SUYO" style="height:28px;border-radius:4px;">
-        <div class="logo-text">E-SUYO <span class="badge admin">ADMIN</span></div>
+        <div class="logo-text">E-SUYO <span class="badge admin" id="role-badge">ADMIN</span></div>
       </div>
       <div class="header-divider"></div>
       <div class="header-location"><span>📍</span> Legazpi City, Albay</div>
@@ -49,9 +49,9 @@
         </div>
         <div class="fare-matrix-tooltip" id="fare-matrix-tooltip"></div>
       </div>
-      <button class="header-btn" id="btn-refresh-pins" title="Reload landmarks from database">↻ Refresh Pins</button>
-      <button class="header-btn" id="btn-sync-db" title="Save all routes to database">☁ Sync to DB</button>
-      <button class="header-btn" id="btn-export" title="Export routes as JSON">⬇ Export</button>
+      <button class="header-btn admin-only" id="btn-refresh-pins" title="Reload landmarks from database">↻ Refresh Pins</button>
+      <button class="header-btn admin-only" id="btn-sync-db" title="Save all routes to database">☁ Sync to DB</button>
+      <button class="header-btn admin-only" id="btn-export" title="Export routes as JSON">⬇ Export</button>
     </div>
   </header>
 
@@ -195,10 +195,10 @@
         </div>
       </div>
       <div class="detail-admin-actions">
-        <button class="btn-edit-route" id="btn-edit-route">✎ Edit</button>
+        <button class="btn-edit-route admin-only" id="btn-edit-route">✎ Edit</button>
         <button class="btn-ride-from-route" id="btn-ride-from-route">🚐 Calculate Fare</button>
         <button class="btn-simulate-route" id="btn-simulate-route">▶ Simulate</button>
-        <button class="btn-delete-route" id="btn-delete-detail">🗑 Delete</button>
+        <button class="btn-delete-route admin-only" id="btn-delete-detail">🗑 Delete</button>
       </div>
     </div>
   </div>
@@ -422,6 +422,22 @@
       <label class="sim-follow-label">
         <input type="checkbox" id="sim-follow" checked> Follow
       </label>
+    </div>
+  </div>
+
+  <!-- Auth Modal -->
+  <div id="auth-overlay">
+    <div class="auth-modal">
+      <img src="assets/esuyo_logo.png" alt="E-SUYO" class="auth-logo">
+      <h2 class="auth-title">E-SUYO</h2>
+      <p class="auth-subtitle">Route Admin Panel · Legazpi City</p>
+      <div class="auth-form">
+        <input type="password" id="auth-password" class="auth-input" placeholder="Admin password" autocomplete="current-password">
+        <div class="auth-error hidden" id="auth-error">Incorrect password. Try again.</div>
+        <button class="auth-btn-primary" id="auth-btn-login">Sign in as Admin</button>
+        <div class="auth-divider"><span>or</span></div>
+        <button class="auth-btn-secondary" id="auth-btn-viewer">Continue as Viewer</button>
+      </div>
     </div>
   </div>
 

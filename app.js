@@ -2,6 +2,60 @@
    E-Suyo — Route Admin Panel Logic
    ═══════════════════════════════════════════════ */
 
+// ── Auth ──────────────────────────────────────────
+const _ADMIN_PW = 'admin123';
+let _userRole = null;
+
+function isAdmin() { return _userRole === 'admin'; }
+
+function _applyRole(role) {
+  _userRole = role;
+  document.body.classList.toggle('viewer-mode', role === 'viewer');
+  document.body.classList.toggle('admin-mode',  role === 'admin');
+  const badge = document.getElementById('role-badge');
+  if (badge) badge.textContent = role === 'admin' ? 'ADMIN' : 'VIEWER';
+}
+
+function initAuth() {
+  return new Promise(resolve => {
+    const stored = sessionStorage.getItem('esuyo_role');
+    if (stored) { _applyRole(stored); resolve(); return; }
+
+    const overlay  = document.getElementById('auth-overlay');
+    const pwInput  = document.getElementById('auth-password');
+    const errMsg   = document.getElementById('auth-error');
+    const btnLogin = document.getElementById('auth-btn-login');
+    const btnView  = document.getElementById('auth-btn-viewer');
+
+    overlay.classList.remove('hidden');
+    setTimeout(() => pwInput.focus(), 60);
+
+    function tryLogin() {
+      if (pwInput.value === _ADMIN_PW) {
+        sessionStorage.setItem('esuyo_role', 'admin');
+        _applyRole('admin');
+        overlay.classList.add('hidden');
+        resolve();
+      } else {
+        errMsg.classList.remove('hidden');
+        pwInput.value = '';
+        pwInput.focus();
+      }
+    }
+
+    btnLogin.addEventListener('click', tryLogin);
+    pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+    pwInput.addEventListener('input',   () => errMsg.classList.add('hidden'));
+
+    btnView.addEventListener('click', () => {
+      sessionStorage.setItem('esuyo_role', 'viewer');
+      _applyRole('viewer');
+      overlay.classList.add('hidden');
+      resolve();
+    });
+  });
+}
+
 const MAP_CENTER = [123.7438, 13.1391];
 const INITIAL_ZOOM = 13.2;
 const INITIAL_PITCH = 55;
@@ -205,6 +259,7 @@ let mapClickHandler = null;
 
 // ── Init ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  await initAuth();
   loadBarangays();
   initSupabase();
   await loadRoutes();
@@ -1018,7 +1073,7 @@ function renderBrandMarkers() {
     el.addEventListener('click', () => {
       const pinIcon = brand === 'jollibee' ? '🐝' : '🍔';
       const category = l.category || 'fastfood';
-      const dbBtns = l.id ? `
+      const dbBtns = l.id && isAdmin() ? `
         <div class="lm-db-actions">
           <button class="lm-reposition-btn" onclick="startReposition('${escHtml(l.id)}','${escHtml(l.name)}',${l.lat},${l.lng},'${escHtml(category)}')">Move Pin</button>
           <button class="lm-delete-btn" onclick="deleteLandmark('${escHtml(l.id)}','${escHtml(l.name)}')">Remove</button>
@@ -1149,7 +1204,7 @@ function addLandmarks() {
         const lng = parseFloat(props.lng);
         const pinIcon = LANDMARK_ICONS[props.category] || '📍';
         const category = props.category || 'landmark';
-        const dbBtns = props.dbId ? `
+        const dbBtns = props.dbId && isAdmin() ? `
           <div class="lm-db-actions">
             <button class="lm-reposition-btn" onclick="startReposition('${escHtml(props.dbId)}','${escHtml(props.name)}',${lat},${lng},'${escHtml(category)}')">Move Pin</button>
             <button class="lm-delete-btn" onclick="deleteLandmark('${escHtml(props.dbId)}','${escHtml(props.name)}')">Remove</button>
@@ -1716,10 +1771,10 @@ function renderRouteList(filter = '') {
         <div class="route-item-name">${r.name}</div>
         <div class="route-item-meta">${r.stops.length} stops · ${routeTotalDistStr(r)}${r.vehicle_type ? ` · ${vehicleTag(r.vehicle_type)}` : ''}</div>
       </div>
-      <div class="route-item-actions">
+      ${isAdmin() ? `<div class="route-item-actions">
         <button class="btn-icon-sm" data-action="edit" title="Edit">✎</button>
         <button class="btn-icon-sm delete" data-action="delete" title="Delete">🗑</button>
-      </div>`;
+      </div>` : ''}`;
     div.addEventListener('click', (e) => {
       const action = e.target.closest('[data-action]')?.dataset.action;
       if (action === 'edit') { startEdit(r.id); return; }

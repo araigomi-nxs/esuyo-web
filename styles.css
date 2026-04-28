@@ -44,6 +44,82 @@ html, body {
 
 h1,h2,h3,h4 { font-family: 'Lexend', sans-serif; font-weight: 700; }
 
+/* ── Auth Modal ──────────────────────────────── */
+#auth-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  background: rgba(10,14,30,0.72); backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+}
+#auth-overlay.hidden { display: none; }
+
+.auth-modal {
+  background: var(--surface); border-radius: 20px;
+  padding: 36px 32px 28px; width: 340px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.3);
+  border: 1px solid var(--surface-high);
+  display: flex; flex-direction: column; align-items: center;
+  animation: authIn 0.28s cubic-bezier(0.2,0,0,1);
+}
+@keyframes authIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+.auth-logo {
+  width: 72px; height: 72px; object-fit: contain;
+  border-radius: 16px; margin-bottom: 14px;
+  filter: drop-shadow(0 4px 12px rgba(0,70,199,0.22));
+}
+.auth-title {
+  font-family: 'Lexend', sans-serif; font-size: 1.5rem; font-weight: 800;
+  color: var(--on-surface); margin-bottom: 4px; letter-spacing: -0.02em;
+}
+.auth-subtitle {
+  font-size: 0.8rem; color: var(--outline); margin-bottom: 24px;
+  letter-spacing: 0.02em; text-align: center;
+}
+.auth-form { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+.auth-input {
+  width: 100%; padding: 11px 14px; border-radius: var(--radius-sm);
+  background: var(--surface-low); border: 1.5px solid var(--surface-high);
+  color: var(--on-surface); font-size: 0.9rem; outline: none;
+  transition: border-color var(--ease);
+  font-family: inherit;
+}
+.auth-input:focus { border-color: var(--primary-container); background: #fff; }
+.auth-error {
+  font-size: 0.78rem; color: var(--error); text-align: center;
+  padding: 4px 0; font-weight: 600;
+}
+.auth-error.hidden { display: none; }
+.auth-btn-primary {
+  width: 100%; padding: 11px; border-radius: var(--radius-sm);
+  background: var(--primary-container); border: none; color: #fff;
+  font-size: 0.9rem; font-weight: 700; cursor: pointer;
+  transition: background var(--ease); font-family: 'Lexend', sans-serif;
+}
+.auth-btn-primary:hover { background: var(--primary); }
+.auth-divider {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--outline); font-size: 0.75rem;
+}
+.auth-divider::before,
+.auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--surface-high); }
+.auth-btn-secondary {
+  width: 100%; padding: 10px; border-radius: var(--radius-sm);
+  background: transparent; border: 1.5px solid var(--surface-high);
+  color: var(--on-surface-variant); font-size: 0.88rem; font-weight: 600;
+  cursor: pointer; transition: all var(--ease); font-family: inherit;
+}
+.auth-btn-secondary:hover { background: var(--surface-low); border-color: var(--outline); }
+
+/* ── Viewer mode — hide admin-only elements ── */
+body.viewer-mode .admin-only { display: none !important; }
+
+/* Viewer badge colour */
+body.viewer-mode #role-badge {
+  background: var(--secondary);
+}
+
 /* ── Loading ─────────────────────────────────── */
 #loading-screen {
   position: fixed; inset: 0; z-index: 9999;
