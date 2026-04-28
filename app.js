@@ -92,7 +92,6 @@ let _draftOnUp     = null;
 let _draftOnEnter  = null;
 let _draftOnLeave  = null;
 let _draftOnDown   = null;
-let pendingDelete  = null;
 
 let _flowLayerIds = [];
 let _glowLayerIds = [];
@@ -791,10 +790,16 @@ function cancelEditStyle() {
 }
 
 // exposed for inline popup onclick
-window.deleteLandmark = async (id) => {
-  if (!confirm('Remove this landmark from the database?')) return;
-  await deleteLandmarkFromDB(id);
-  if (activePopup) { activePopup.remove(); activePopup = null; }
+window.deleteLandmark = (id, name) => {
+  _openDeleteModal(
+    'Remove Landmark?',
+    `"${name || 'This pin'}" will be permanently removed from the map.`,
+    async () => {
+      await deleteLandmarkFromDB(id);
+      if (activePopup) { activePopup.remove(); activePopup = null; }
+      _closeDeleteModal();
+    }
+  );
 };
 
 const LANDMARK_COLORS = {
@@ -1013,7 +1018,7 @@ function renderBrandMarkers() {
       const dbBtns = l.id ? `
         <div class="lm-db-actions">
           <button class="lm-reposition-btn" onclick="startReposition('${escHtml(l.id)}','${escHtml(l.name)}',${l.lat},${l.lng},'${escHtml(category)}')">Move Pin</button>
-          <button class="lm-delete-btn" onclick="deleteLandmark('${escHtml(l.id)}')">Remove</button>
+          <button class="lm-delete-btn" onclick="deleteLandmark('${escHtml(l.id)}','${escHtml(l.name)}')">Remove</button>
         </div>` : '';
       if (activePopup) { activePopup.remove(); activePopup = null; }
       activePopup = new maplibregl.Popup({ closeButton: false, closeOnClick: true, offset: [0, -14] })
@@ -1144,7 +1149,7 @@ function addLandmarks() {
         const dbBtns = props.dbId ? `
           <div class="lm-db-actions">
             <button class="lm-reposition-btn" onclick="startReposition('${escHtml(props.dbId)}','${escHtml(props.name)}',${lat},${lng},'${escHtml(category)}')">Move Pin</button>
-            <button class="lm-delete-btn" onclick="deleteLandmark('${escHtml(props.dbId)}')">Remove</button>
+            <button class="lm-delete-btn" onclick="deleteLandmark('${escHtml(props.dbId)}','${escHtml(props.name)}')">Remove</button>
           </div>` : '';
         if (activePopup) { activePopup.remove(); activePopup = null; }
         activePopup = new maplibregl.Popup({ closeButton: false, closeOnClick: true, offset: 15 })
@@ -2375,28 +2380,44 @@ async function saveRoute() {
 // ── Edit / Delete ─────────────────────────────────
 function startEdit(routeId) { hideRouteDetail(); openBuilder(routeId); }
 
-function confirmDelete(routeId) {
-  const route = routes.find(r => r.id === routeId);
-  pendingDelete = routeId;
-  document.getElementById('modal-msg').textContent =
-    `This will permanently remove "${route?.name || 'this route'}".`;
+let _pendingDeleteFn = null;
+
+function _openDeleteModal(title, msg, fn) {
+  _pendingDeleteFn = fn;
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-msg').textContent = msg;
   document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
-async function doDelete() {
-  if (!pendingDelete) return;
-  if (_supabase) {
-    const { error } = await _supabase.from('routes').delete().eq('id', pendingDelete);
-    if (error) { console.error('Route delete error:', error); alert('Failed to delete route: ' + error.message); return; }
-  }
-  removeRouteFromMap(pendingDelete);
-  routes = routes.filter(r => r.id !== pendingDelete);
-  saveRoutes();
-  pendingDelete = null;
-  hideRouteDetail();
-  renderRouteList();
-  updateRouteCount();
+function _closeDeleteModal() {
   document.getElementById('modal-overlay').classList.add('hidden');
+  _pendingDeleteFn = null;
+}
+
+function confirmDelete(routeId) {
+  const route = routes.find(r => r.id === routeId);
+  _openDeleteModal(
+    'Delete Route?',
+    `This will permanently remove "${route?.name || 'this route'}" and all its stops.`,
+    async () => {
+      if (_supabase) {
+        const { error } = await _supabase.from('routes').delete().eq('id', routeId);
+        if (error) { console.error('Route delete error:', error); alert('Failed to delete route: ' + error.message); return; }
+      }
+      removeRouteFromMap(routeId);
+      routes = routes.filter(r => r.id !== routeId);
+      saveRoutes();
+      hideRouteDetail();
+      renderRouteList();
+      updateRouteCount();
+      _closeDeleteModal();
+    }
+  );
+}
+
+async function doDelete() {
+  if (!_pendingDeleteFn) return;
+  await _pendingDeleteFn();
 }
 
 // ── Route Simulation ──────────────────────────────
@@ -2912,12 +2933,10 @@ function bindEvents() {
   document.getElementById('sim-slower').addEventListener('click', () => _simChangeSpeed(-1));
   document.getElementById('sim-faster').addEventListener('click', () => _simChangeSpeed(1));
 
-  document.getElementById('modal-cancel').addEventListener('click', () => {
-    document.getElementById('modal-overlay').classList.add('hidden'); pendingDelete = null;
-  });
+  document.getElementById('modal-cancel').addEventListener('click', _closeDeleteModal);
   document.getElementById('modal-confirm').addEventListener('click', doDelete);
   document.getElementById('modal-overlay').addEventListener('click', e => {
-    if (e.target.id === 'modal-overlay') { document.getElementById('modal-overlay').classList.add('hidden'); pendingDelete = null; }
+    if (e.target.id === 'modal-overlay') _closeDeleteModal();
   });
 
   document.getElementById('rp-bar-save').addEventListener('click', saveReposition);
