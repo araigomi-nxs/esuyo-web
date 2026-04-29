@@ -294,6 +294,7 @@ function initMap() {
       addTerrain();
       addBarangayLayers();
       add3DBuildings();
+      addGreenery();
       addLandmarks();
       initLandmarkFilter();
       renderAllRoutesOnMap();
@@ -517,6 +518,45 @@ function add3DBuildings() {
   }
 }
 
+
+function addGreenery() {
+  try {
+    // Reuses the esuyo-bld MapTiler source added by add3DBuildings().
+    // Adds two layers — landcover (ground texture: grass, wood) and landuse (parks, forests)
+    // — with a saturated green so greenery pops against the white CARTO basemap.
+    if (!map.getSource('esuyo-bld')) return;
+    if (map.getLayer('green-cover')) return;
+
+    const firstSymbol = map.getStyle().layers.find(l => l.type === 'symbol');
+
+    map.addLayer({
+      id: 'green-cover',
+      type: 'fill',
+      source: 'esuyo-bld',
+      'source-layer': 'landcover',
+      filter: ['in', ['get', 'class'], ['literal', ['grass', 'wood', 'scrub', 'wetland']]],
+      paint: {
+        'fill-color': '#a8d5a2',
+        'fill-opacity': 0.55,
+        'fill-antialias': true
+      }
+    }, firstSymbol?.id);
+
+    map.addLayer({
+      id: 'green-use',
+      type: 'fill',
+      source: 'esuyo-bld',
+      'source-layer': 'landuse',
+      filter: ['in', ['get', 'class'], ['literal', ['park', 'grass', 'forest', 'meadow', 'garden', 'farmland']]],
+      paint: {
+        'fill-color': '#7ec880',
+        'fill-opacity': 0.6,
+        'fill-antialias': true
+      }
+    }, firstSymbol?.id);
+
+  } catch (e) { console.error('Greenery error:', e); }
+}
 
 // ── Supabase ──────────────────────────────────────
 // Replace these with your project values from supabase.com → Settings → API
@@ -1400,14 +1440,19 @@ function addRouteToMap(route) {
   const stopsId = `stops-${route.id}`;
   const terminalId = `terminal-${route.id}`;
 
+  const _beforeLandmarks = () => {
+    try { return map.getLayer('landmarks-circle') ? 'landmarks-circle' : undefined; } catch { return undefined; }
+  };
+  const _bl = _beforeLandmarks();
+
   map.addLayer({ id: glowId, type: 'line', source: srcId,
     layout: { 'line-join': 'round', 'line-cap': 'round' },
     paint: { 'line-color': route.color, 'line-width': 14, 'line-opacity': 0.12, 'line-blur': 6 }
-  });
+  }, _bl);
   map.addLayer({ id: lineId, type: 'line', source: srcId,
     layout: { 'line-join': 'round', 'line-cap': 'round' },
     paint: { 'line-color': route.color, 'line-width': 4, 'line-opacity': 0.9 }
-  });
+  }, _bl);
   const flowId = `flow-${route.id}`;
   map.addLayer({ id: flowId, type: 'line', source: srcId,
     layout: { 'line-join': 'round', 'line-cap': 'round' },
@@ -1417,7 +1462,7 @@ function addRouteToMap(route) {
       'line-opacity': 0,
       'line-dasharray': _FLOW_DASH_SEQ[0]
     }
-  });
+  }, _bl);
   _flowLayerIds.push(flowId);
   _glowLayerIds.push(glowId);
   map.addLayer({ id: arrowsId, type: 'symbol', source: srcId,
@@ -1429,7 +1474,7 @@ function addRouteToMap(route) {
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
     }
-  });
+  }, _bl);
   const reverseArrowsId = `reverse-arrows-${route.id}`;
   map.addLayer({ id: reverseArrowsId, type: 'symbol', source: srcId,
     layout: {
@@ -1442,7 +1487,7 @@ function addRouteToMap(route) {
       'icon-ignore-placement': true,
     },
     paint: { 'icon-opacity': 0.45 }
-  });
+  }, _bl);
   // All stops except the starting point (rendered as circle dots)
   map.addLayer({ id: stopsId, type: 'circle', source: stopsSrcId,
     filter: ['!=', ['get', 'isStart'], true],
@@ -1453,7 +1498,7 @@ function addRouteToMap(route) {
       'circle-stroke-color': '#fff',
       'circle-opacity': 0.95
     }
-  });
+  }, _bl);
   // Starting point rendered as a terminal pin icon
   map.addLayer({ id: terminalId, type: 'symbol', source: stopsSrcId,
     filter: ['==', ['get', 'isStart'], true],
@@ -1465,7 +1510,7 @@ function addRouteToMap(route) {
       'icon-ignore-placement': true,
     },
     paint: { 'icon-opacity': 1 }
-  });
+  }, _bl);
 
   const handleStopClick = (e) => {
     if (builderOpen) return;
