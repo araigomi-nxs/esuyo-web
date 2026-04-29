@@ -18,15 +18,11 @@ function _applyRole(role) {
 
 function initAuth() {
   return new Promise(resolve => {
-    const overlay = document.getElementById('auth-overlay');
-    const stored = sessionStorage.getItem('esuyo_role');
-    if (stored) { _applyRole(stored); overlay.classList.add('hidden'); resolve(); return; }
+    const overlay  = document.getElementById('auth-overlay');
     const pwInput  = document.getElementById('auth-password');
     const errMsg   = document.getElementById('auth-error');
     const btnLogin = document.getElementById('auth-btn-login');
     const btnView  = document.getElementById('auth-btn-viewer');
-
-    setTimeout(() => pwInput.focus(), 60);
 
     function tryLogin() {
       if (pwInput.value === _ADMIN_PW) {
@@ -51,6 +47,12 @@ function initAuth() {
       overlay.classList.add('hidden');
       resolve();
     });
+
+    // Default to viewer on load without showing the login screen
+    const stored = sessionStorage.getItem('esuyo_role') || 'viewer';
+    _applyRole(stored);
+    overlay.classList.add('hidden');
+    resolve();
   });
 }
 
@@ -182,8 +184,13 @@ async function getCoordsFromPlace(placeName) {
 // ── Local barangay polygon lookup ────────────────
 let legazpiBarangays = null;
 
-function loadBarangays() {
-  legazpiBarangays = window.LEGAZPI_BARANGAYS || null;
+async function loadBarangays() {
+  try {
+    const res = await fetch('legazpi-barangays.json');
+    legazpiBarangays = await res.json();
+    // If the map finished loading before the fetch returned, add the layers now
+    if (map && map.isStyleLoaded()) addBarangayLayers();
+  } catch (e) { console.warn('Barangay data load failed:', e); }
 }
 
 function pointInRing(lng, lat, ring) {
@@ -256,9 +263,17 @@ let routeSources = {};
 let mapClickHandler = null;
 
 // ── Init ─────────────────────────────────────────
+function _initGooglePlaces() {
+  const key = window.ESUYO_CONFIG?.GOOGLE_PLACES_API_KEY;
+  if (!key || key.startsWith('your-')) return;
+  ((g)=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await(a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n));})({ key, v: 'weekly' });
+  google.maps.importLibrary('places').then(() => { window.googlePlacesReady = true; });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  _initGooglePlaces();
   await initAuth();
-  loadBarangays();
+  loadBarangays(); // async — fires fetch in background, map.on('load') handles timing
   initSupabase();
   await loadRoutes();
   initMap();
@@ -285,8 +300,12 @@ function initMap() {
     style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
     center: MAP_CENTER, zoom: INITIAL_ZOOM,
     pitch: INITIAL_PITCH, bearing: INITIAL_BEARING,
-    maxZoom: 18, minZoom: 10, antialias: true,
-    renderWorldCopies: false
+    maxZoom: 18, minZoom: 8, antialias: true,
+    renderWorldCopies: false,
+    // Lock camera to the Philippines — no tiles loaded outside this box
+    maxBounds: [[116.0, 4.5], [127.0, 21.5]],
+    fadeDuration: 100,
+    maxTileCacheSize: 200,
   });
 
   map.on('load', () => {
@@ -509,8 +528,8 @@ function add3DBuildings() {
           17, 0.95
         ],
         'fill-extrusion-vertical-gradient': true,
-        'fill-extrusion-ambient-occlusion-intensity': 0.45,
-        'fill-extrusion-ambient-occlusion-radius': 4
+        'fill-extrusion-ambient-occlusion-intensity': 0.2,
+        'fill-extrusion-ambient-occlusion-radius': 3
       }
     }, firstSymbol?.id);
   } catch (e) {
@@ -689,6 +708,7 @@ function refreshLandmarksLayer() {
 let _repositionMarker = null;
 let _repositionId = null;
 let _currentOrbScale = null;
+let _repositionMapListeners = null;
 
 function startReposition(id, name, lat, lng, category) {
   if (activePopup) { activePopup.remove(); activePopup = null; }
@@ -741,6 +761,13 @@ function startReposition(id, name, lat, lng, category) {
   map.on('move', _currentOrbScale);
   _currentOrbScale();
 
+  const canvas = map.getCanvas();
+  const onMapEnter = () => el.classList.add('map-active');
+  const onMapLeave = () => el.classList.remove('map-active');
+  canvas.addEventListener('mouseenter', onMapEnter);
+  canvas.addEventListener('mouseleave', onMapLeave);
+  _repositionMapListeners = { canvas, onMapEnter, onMapLeave };
+
   const updateCoords = () => {
     const ll = _repositionMarker.getLngLat();
     document.getElementById('rp-bar-coords').textContent = `${ll.lat.toFixed(5)}, ${ll.lng.toFixed(5)}`;
@@ -789,9 +816,15 @@ async function saveReposition() {
 }
 
 function cancelReposition() {
-  if (_repositionMarker) { 
+  if (_repositionMarker) {
     if (_currentOrbScale) map.off('move', _currentOrbScale);
-    _repositionMarker.remove(); _repositionMarker = null; 
+    if (_repositionMapListeners) {
+      const { canvas, onMapEnter, onMapLeave } = _repositionMapListeners;
+      canvas.removeEventListener('mouseenter', onMapEnter);
+      canvas.removeEventListener('mouseleave', onMapLeave);
+      _repositionMapListeners = null;
+    }
+    _repositionMarker.remove(); _repositionMarker = null;
     _currentOrbScale = null;
   }
   _repositionId = null;
@@ -864,9 +897,13 @@ function toggleBarangays() {
   document.getElementById('btn-barangays').classList.toggle('active', barangaysVisible);
 
   if (barangaysVisible) {
+    let _brgyTick = 0;
     _brgyGlowFrame = requestAnimationFrame(function tick(ts) {
-      const op = 0.14 + 0.10 * Math.sin(ts / 1100);
-      try { if (map.getLayer('brgy-glow-outer')) map.setPaintProperty('brgy-glow-outer', 'line-opacity', op); } catch {}
+      if (ts - _brgyTick > 50) { // ~20fps — setPaintProperty is expensive per-frame
+        _brgyTick = ts;
+        const op = 0.14 + 0.10 * Math.sin(ts / 1100);
+        try { if (map.getLayer('brgy-glow-outer')) map.setPaintProperty('brgy-glow-outer', 'line-opacity', op); } catch {}
+      }
       _brgyGlowFrame = requestAnimationFrame(tick);
     });
   } else {
@@ -2558,7 +2595,16 @@ let simMarker = null;
 let simAnimFrame = null;
 let simLastTs = null;
 let simStopIdxs = [];
+let simCurrentBearing = 0;
 const SIM_SPEEDS = [40, 80, 120, 200, 400, 800];
+
+// Flip the jeepney image when heading leftward on screen
+function _updateSimMirror() {
+  if (!simMarker) return;
+  const screenBearing = (simCurrentBearing - map.getBearing() + 360) % 360;
+  const img = simMarker.getElement()?.querySelector('.sim-jeep-img');
+  if (img) img.style.transform = screenBearing > 180 ? 'scaleX(-1)' : 'none';
+}
 
 function _bearingBetween([lng1, lat1], [lng2, lat2]) {
   const dLng = (lng2 - lng1) * Math.PI / 180;
@@ -2588,12 +2634,6 @@ function _posAtProgress(prog) {
   };
 }
 
-function _updateSimMarkerRotation() {
-  if (!simMarker) return;
-  const { bearing } = _posAtProgress(simProgress);
-  const img = simMarker.getElement().querySelector('.sim-jeep-img');
-  if (img) img.style.transform = `rotate(${bearing - map.getBearing()}deg)`;
-}
 
 function _simNextStopName() {
   const route = routes.find(r => r.id === simRouteId);
@@ -2612,9 +2652,10 @@ function _simTick(ts) {
     if (simProgress >= simTotalKm) { simProgress = simTotalKm; _simFinish(); return; }
   }
   simLastTs = ts;
-  const { lngLat } = _posAtProgress(simProgress);
+  const { lngLat, bearing } = _posAtProgress(simProgress);
+  simCurrentBearing = bearing;
   simMarker.setLngLat(lngLat);
-  _updateSimMarkerRotation();
+  _updateSimMirror();
   if (document.getElementById('sim-follow')?.checked) map.easeTo({ center: lngLat, duration: 80 });
   const pct = (simProgress / simTotalKm) * 100;
   document.getElementById('sim-progress-fill').style.width = pct + '%';
@@ -2652,9 +2693,14 @@ function startSimulation(routeId) {
   const el = document.createElement('div');
   el.className = 'sim-marker';
   el.innerHTML = `<img src="assets/jeep.png" class="sim-jeep-img" draggable="false">`;
-  simMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(simCoords[0]).addTo(map);
-  _updateSimMarkerRotation();
-  map.on('rotate', _updateSimMarkerRotation);
+  simCurrentBearing = _posAtProgress(0).bearing;
+  simMarker = new maplibregl.Marker({
+    element: el,
+    anchor: 'center',
+    pitchAlignment: 'viewport',  // stays flat on screen, never tilts with pitch
+  }).setLngLat(simCoords[0]).addTo(map);
+  _updateSimMirror();
+  map.on('rotate', _updateSimMirror);
   // Panel
   document.getElementById('sim-dot').style.background = route.color;
   document.getElementById('sim-name').textContent = route.name;
@@ -2673,7 +2719,7 @@ function startSimulation(routeId) {
 
 function stopSimulation() {
   simActive = false; simPaused = false;
-  map.off('rotate', _updateSimMarkerRotation);
+  map.off('rotate', _updateSimMirror);
   if (simAnimFrame) { cancelAnimationFrame(simAnimFrame); simAnimFrame = null; }
   if (simMarker) { simMarker.remove(); simMarker = null; }
   document.getElementById('sim-panel')?.classList.add('hidden');
@@ -3048,8 +3094,13 @@ function bindEvents() {
   });
   document.getElementById('btn-export').addEventListener('click', exportRoutes);
   document.getElementById('logo-btn').addEventListener('click', () => {
-    hideRouteDetail(); closeBuilder();
-    map.flyTo({ center: MAP_CENTER, zoom: INITIAL_ZOOM, pitch: INITIAL_PITCH, bearing: INITIAL_BEARING, duration: 1200 });
+    const overlay = document.getElementById('auth-overlay');
+    const pwInput = document.getElementById('auth-password');
+    const errMsg  = document.getElementById('auth-error');
+    pwInput.value = '';
+    errMsg.classList.add('hidden');
+    overlay.classList.remove('hidden');
+    setTimeout(() => pwInput.focus(), 60);
   });
 
   document.getElementById('builder-close').addEventListener('click', closeBuilder);
@@ -3088,6 +3139,8 @@ function bindEvents() {
   document.getElementById('ps-close').addEventListener('click', closePlaceSearch);
   document.getElementById('ps-search-btn').addEventListener('click', runPlaceSearch);
   document.getElementById('ps-input').addEventListener('keydown', e => { if (e.key === 'Enter') runPlaceSearch(); });
+  document.getElementById('ps-mode-google').addEventListener('click', () => _setSearchMode('google'));
+  document.getElementById('ps-mode-osm').addEventListener('click', () => _setSearchMode('osm'));
   document.getElementById('ps-save').addEventListener('click', savePlaceToMap);
   document.getElementById('ps-discard').addEventListener('click', discardPlacePreview);
 
@@ -3116,16 +3169,7 @@ function bindEvents() {
   document.getElementById('lf-close').addEventListener('click', toggleLandmarkFilter);
   document.getElementById('lf-show-all').addEventListener('click', () => setAllLandmarkCategories(true));
   document.getElementById('lf-hide-all').addEventListener('click', () => setAllLandmarkCategories(false));
-  document.getElementById('lf-refresh').addEventListener('click', async () => {
-    const btn = document.getElementById('lf-refresh');
-    btn.disabled = true;
-    btn.textContent = '↻ Loading…';
-    _clearLandmarkCache();
-    await fetchLandmarksFromDB(true);
-    btn.disabled = false;
-    btn.textContent = '↻ Refresh';
-  });
-  document.getElementById('btn-3d').addEventListener('click', toggle3D);
+document.getElementById('btn-3d').addEventListener('click', toggle3D);
   document.getElementById('btn-reset').addEventListener('click', () => {
     hideRouteDetail();
     map.flyTo({ center: MAP_CENTER, zoom: INITIAL_ZOOM, pitch: INITIAL_PITCH, bearing: INITIAL_BEARING, duration: 1200 });
@@ -3147,18 +3191,29 @@ function bindEvents() {
   });
 }
 
-// ── Google Places Search ──────────────────────────
-// One Place.searchByText call per explicit search — no autocomplete, no background requests.
+// ── Place Search (Google Places + OSM toggle) ─────
 let previewMarker = null;
 let previewPlace = null;
+let _searchMode = 'google'; // 'google' | 'osm'
 
 function openPlaceSearch() {
-  if (!window.googlePlacesReady) {
-    alert('Google Places is not ready. Check your GOOGLE_PLACES_API_KEY in config.js.');
-    return;
+  if (_searchMode === 'google' && !window.googlePlacesReady) {
+    // Fall back to OSM silently if Google isn't ready
+    _setSearchMode('osm');
   }
   document.getElementById('place-search-panel').classList.add('open');
   setTimeout(() => document.getElementById('ps-input').focus(), 150);
+}
+
+function _setSearchMode(mode) {
+  _searchMode = mode;
+  document.getElementById('ps-mode-google').classList.toggle('active', mode === 'google');
+  document.getElementById('ps-mode-osm').classList.toggle('active', mode === 'osm');
+  const input = document.getElementById('ps-input');
+  input.placeholder = mode === 'osm'
+    ? 'e.g. Legazpi City Hall (OSM)'
+    : 'e.g. Legazpi City Hall';
+  discardPlacePreview();
 }
 
 function closePlaceSearch() {
@@ -3179,8 +3234,10 @@ function discardPlacePreview() {
   btn.textContent = 'Search';
 }
 
-// Fired by button click or Enter — one API call
+// Fired by button click or Enter — dispatches to active search mode
 async function runPlaceSearch() {
+  if (_searchMode === 'osm') { runOsmPlaceSearch(); return; }
+
   const val = document.getElementById('ps-input').value.trim();
   if (!val) return;
 
@@ -3238,6 +3295,61 @@ async function runPlaceSearch() {
     btn.textContent = 'Search';
     console.error('Place search error:', e);
     resultsBox.innerHTML = '<div class="ps-no-results">Search failed. Check your API key.</div>';
+    resultsBox.classList.add('active');
+  }
+}
+
+async function runOsmPlaceSearch() {
+  const val = document.getElementById('ps-input').value.trim();
+  if (!val) return;
+
+  const btn = document.getElementById('ps-search-btn');
+  btn.disabled = true;
+  btn.textContent = 'Searching…';
+
+  const resultsBox = document.getElementById('ps-results');
+  resultsBox.innerHTML = '';
+  resultsBox.classList.remove('active');
+  document.getElementById('ps-preview').classList.add('hidden');
+  document.getElementById('ps-hint').classList.add('hidden');
+
+  try {
+    const url = `${NOMINATIM}/search?format=json&q=${encodeURIComponent(val + ', Legazpi Albay Philippines')}&limit=8&addressdetails=1&namedetails=1&countrycodes=ph&viewbox=123.5,13.0,123.9,13.4&bounded=0`;
+    const res = await fetch(CORS_PROXY + encodeURIComponent(url), NOMINATIM_OPTS);
+    const places = await res.json();
+
+    btn.disabled = false;
+    btn.textContent = 'Search';
+
+    if (!places?.length) {
+      resultsBox.innerHTML = '<div class="ps-no-results">No results found. Try a different name.</div>';
+      resultsBox.classList.add('active');
+      return;
+    }
+
+    resultsBox.classList.add('active');
+    places.slice(0, 6).forEach(r => {
+      const lat = parseFloat(r.lat);
+      const lng = parseFloat(r.lon);
+      const name = r.namedetails?.name || r.display_name.split(',')[0];
+      const item = document.createElement('div');
+      item.className = 'ps-suggestion';
+      item.innerHTML = `
+        <span class="ps-sug-main">${escHtml(name)}</span>
+        <span class="ps-sug-sub">${escHtml(r.display_name)}</span>`;
+      item.addEventListener('click', () => {
+        resultsBox.querySelectorAll('.ps-suggestion').forEach(el => el.classList.remove('selected'));
+        item.classList.add('selected');
+        previewPlace = { name, lat, lng, address: r.display_name, google_place_id: null };
+        showPlacePreview(previewPlace);
+      });
+      resultsBox.appendChild(item);
+    });
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Search';
+    console.error('OSM search error:', e);
+    resultsBox.innerHTML = '<div class="ps-no-results">Search failed. Try again.</div>';
     resultsBox.classList.add('active');
   }
 }

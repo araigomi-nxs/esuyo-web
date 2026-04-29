@@ -749,6 +749,28 @@ body.viewer-mode #role-badge {
 .map-control-btn:hover { background: #fff; border-color: var(--surface-high); transform: scale(1.06); }
 .map-control-btn.active { background: rgba(43,96,230,0.1); border-color: rgba(43,96,230,0.3); color: var(--primary-container); }
 
+/* Add Landmark — icon-only + button */
+.btn-add-place-icon { font-size: 1rem; }
+.add-place-plus { font-size: 1.6rem; font-weight: 300; line-height: 1; margin-top: -1px; }
+
+/* Landmark split button */
+.lm-split-btn { display: flex; flex-direction: row; }
+.lm-split-btn .lm-main {
+  border-radius: 12px 0 0 12px;
+  border-right: none;
+  flex: 1;
+}
+.lm-split-btn .lm-arrow {
+  border-radius: 0 12px 12px 0;
+  width: 20px;
+  font-size: 0.75rem;
+  padding: 0;
+}
+.lm-split-btn .lm-main:hover,
+.lm-split-btn .lm-arrow:hover { transform: none; background: #fff; }
+.lm-split-btn:hover .lm-main,
+.lm-split-btn:hover .lm-arrow { border-color: var(--surface-high); }
+
 /* ── Delete Modal ────────────────────────────── */
 #modal-overlay {
   position: fixed; inset: 0; z-index: 500;
@@ -852,8 +874,7 @@ body.viewer-mode #role-badge {
 .sim-jeep-img {
   width: 100%; height: 100%; object-fit: contain;
   filter: drop-shadow(0 3px 8px rgba(0,0,0,0.45));
-  transition: transform 0.12s linear;
-  will-change: transform;
+  transition: transform 0.18s ease;
 }
 
 /* ── Simulation Panel ────────────────────────── */
@@ -1096,6 +1117,33 @@ body.viewer-mode #role-badge {
   padding: 16px 16px 12px;
   border-bottom: 1px solid var(--surface-high);
   flex-shrink: 0;
+}
+.ps-mode-toggle {
+  display: flex;
+  gap: 0;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--surface-high);
+  flex-shrink: 0;
+  background: var(--surface-low);
+}
+.ps-mode-btn {
+  flex: 1;
+  padding: 5px 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid var(--surface-high);
+  background: var(--surface);
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  letter-spacing: 0.02em;
+}
+.ps-mode-btn:first-child { border-radius: 6px 0 0 6px; }
+.ps-mode-btn:last-child  { border-radius: 0 6px 6px 0; border-left: none; }
+.ps-mode-btn.active {
+  background: var(--primary-container);
+  color: #fff;
+  border-color: var(--primary-container);
 }
 .ps-title {
   display: flex;
@@ -1580,6 +1628,8 @@ body.viewer-mode #role-badge {
   #custom-controls { bottom: 16px; right: 12px; gap: 4px; }
   .map-control-btn { width: 40px; height: 40px; border-radius: 10px; font-size: 0.95rem; }
   .map-control-btn .label { display: none; }
+  .lm-split-btn .lm-main { width: 40px; }
+  .lm-split-btn .lm-arrow { width: 18px; }
 
   /* ── Place search panel → full-width from top ── */
   #place-search-panel {
@@ -1626,4 +1676,19 @@ body.viewer-mode #role-badge {
   /* ── Builder row wraps on narrow screens ── */
   .builder-row { flex-wrap: wrap; }
   .meta-field { min-width: calc(50% - 4px); }
+}
+
+@keyframes orb-jump {
+  0%   { translate: 0 0; }
+  35%  { translate: 0 -7px; }
+  65%  { translate: 0 -3px; }
+  100% { translate: 0 0; }
+}
+
+.reposition-marker:hover {
+  animation: orb-jump 0.35s ease-out;
+}
+
+.reposition-marker.map-active {
+  animation: orb-jump 1.2s ease-out infinite;
 }

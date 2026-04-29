@@ -6,13 +6,24 @@
   <title>E-Suyo — Route Admin Panel</title>
   <meta name="theme-color" content="#0046C7">
 
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+  <!-- Preconnect to tile/style CDNs so first requests go out immediately -->
+  <link rel="preconnect" href="https://basemaps.cartocdn.com" crossorigin>
+  <link rel="preconnect" href="https://a.basemaps.cartocdn.com" crossorigin>
+  <link rel="preconnect" href="https://api.maptiler.com" crossorigin>
+
+  <!-- MapLibre CSS (non-blocking) -->
   <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
-  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- All scripts deferred: download in parallel with HTML parse, execute in order after -->
+  <script defer src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="app.js"></script>
 
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -205,18 +216,20 @@
 
   <!-- Map Controls -->
   <div id="custom-controls">
-    <button class="map-control-btn" id="btn-add-place" title="Search & Add Landmark">
-      <span>＋</span><span class="label">Add Place</span>
+    <button class="map-control-btn btn-add-place-icon" id="btn-add-place" title="Add Landmark">
+      <span class="add-place-plus">+</span>
     </button>
-<button class="map-control-btn" id="btn-barangays" title="Show Barangay Boundaries">
+    <button class="map-control-btn" id="btn-barangays" title="Show Barangay Boundaries">
       <span>🗺️</span><span class="label">Barangays</span>
     </button>
-    <button class="map-control-btn" id="btn-landmarks" title="Show Landmarks">
-      <span>📍</span><span class="label">Points</span>
-    </button>
-    <button class="map-control-btn" id="btn-landmark-filter" title="Filter Landmark Types">
-      <span>🔽</span><span class="label">Filter</span>
-    </button>
+    <div class="lm-split-btn">
+      <button class="map-control-btn lm-main" id="btn-landmarks" title="Show/Hide Landmarks">
+        <span>📍</span><span class="label">Points</span>
+      </button>
+      <button class="map-control-btn lm-arrow" id="btn-landmark-filter" title="Filter Landmark Types">
+        <span>▾</span>
+      </button>
+    </div>
     <button class="map-control-btn active" id="btn-3d" title="Toggle 3D">
       <span>🌐</span><span class="label">3D</span>
     </button>
@@ -233,6 +246,10 @@
         <h3>Add Landmark</h3>
       </div>
       <button class="btn-icon" id="ps-close">✕</button>
+    </div>
+    <div class="ps-mode-toggle">
+      <button class="ps-mode-btn active" id="ps-mode-google" title="Search using Google Places">Google</button>
+      <button class="ps-mode-btn" id="ps-mode-osm" title="Search using OpenStreetMap data">OSM</button>
     </div>
     <div class="ps-body">
       <div class="ps-search-wrap">
@@ -389,8 +406,7 @@
       <div class="lf-header-actions">
         <button class="lf-all-btn" id="lf-show-all">All</button>
         <button class="lf-all-btn" id="lf-hide-all">None</button>
-        <button class="lf-all-btn" id="lf-refresh" title="Reload landmarks from database">↻ Refresh</button>
-        <button class="lf-close-btn" id="lf-close">✕</button>
+<button class="lf-close-btn" id="lf-close">✕</button>
       </div>
     </div>
     <div class="lf-chips" id="lf-chips"></div>
@@ -453,18 +469,5 @@
     </div>
   </div>
 
-  <script src="config.js"></script>
-  <script src="legazpi-barangays.js"></script>
-  <script src="app.js"></script>
-  <!-- Google Places — uses the recommended bootstrap loader -->
-  <script>
-    (function loadGooglePlaces() {
-      const key = window.ESUYO_CONFIG?.GOOGLE_PLACES_API_KEY;
-      if (!key || key.startsWith('your-')) return;
-      // Google-recommended bootstrap loader (avoids "loaded directly" warning)
-      ((g)=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await(a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n));})({ key, v: 'weekly' });
-      google.maps.importLibrary('places').then(() => { window.googlePlacesReady = true; });
-    })();
-  </script>
 </body>
 </html>
