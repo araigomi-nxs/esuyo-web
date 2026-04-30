@@ -486,17 +486,16 @@ function add3DBuildings() {
   try {
     if (map.getLayer('bld-3d')) return;
 
-    // CARTO style doesn't include building height data — add MapTiler as a separate source.
+    // OpenFreeMap provides OSM building + landcover data for free with no API key.
     // Most Philippine OSM buildings lack height tags → fall back to 8 m (≈2-storey).
     if (!map.getSource('esuyo-bld')) {
-      const key = window.ESUYO_CONFIG.MAPTILER_KEY;
       map.addSource('esuyo-bld', {
         type: 'vector',
-        url: `https://api.maptiler.com/tiles/v3/tiles.json?key=${key}`
+        url: 'https://tiles.openfreemap.org/planet'
       });
     }
 
-    const bldHeight = ['coalesce', ['to-number', ['get', 'render_height']], ['to-number', ['get', 'height']], 8];
+    const bldHeight = ['coalesce', ['to-number', ['get', 'render_height']], ['to-number', ['get', 'height']], 14];
     const bldBase   = ['coalesce', ['to-number', ['get', 'render_min_height']], 0];
 
     // Insert before the first symbol layer so road/place labels float above buildings.
@@ -540,7 +539,7 @@ function add3DBuildings() {
 
 function addGreenery() {
   try {
-    // Reuses the esuyo-bld MapTiler source added by add3DBuildings().
+    // Reuses the esuyo-bld OpenFreeMap source added by add3DBuildings().
     // Adds two layers — landcover (ground texture: grass, wood) and landuse (parks, forests)
     // — with a saturated green so greenery pops against the white CARTO basemap.
     if (!map.getSource('esuyo-bld')) return;
@@ -2771,6 +2770,8 @@ function toggle3D() {
   is3D = !is3D;
   map.easeTo({ pitch: is3D ? 55 : 0, duration: 700 });
   btn.classList.toggle('active', is3D);
+  const vis = is3D ? 'visible' : 'none';
+  if (map.getLayer('bld-3d')) map.setLayoutProperty('bld-3d', 'visibility', vis);
 }
 
 // ── Ride Mode ─────────────────────────────────────
