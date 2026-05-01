@@ -102,7 +102,7 @@ function vehicleTag(type) {
   return `<span class="vehicle-tag vehicle-tag--${type}">${v.emoji} ${v.label}</span>`;
 }
 
-let _fareMatrixCache = null;
+let _fareMatrixCache = null; // cleared on page load — rebuilt on first hover
 
 function initFareMatrixTooltip() {
   const el = document.getElementById('fare-matrix-tooltip');
@@ -120,8 +120,8 @@ function initFareMatrixTooltip() {
       <thead>
         <tr>
           <th>Vehicle</th>
-          <th>Pre-2026</th>
-          <th>2026 Rates</th>
+          <th>Pre-March 26</th>
+          <th>March 2026</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -3303,26 +3303,47 @@ async function _placeRideMarker(lat, lng, type) {
     (address || `${finalLat.toFixed(5)}, ${finalLng.toFixed(5)}`) + (snapped ? ' ✓' : ''));
 }
 
-function _drawRidePathAlongRoute() {
-  if (!_ridePickupCoords || !_rideDropoffCoords || !activeRouteId || !_rideRouteCoords.length) return;
-  
-  const route = routes.find(r => r.id === activeRouteId);
-  if (!route) return;
-  
-  const allCoords = buildSavedRouteCoords(route);
-  const p1Idx = _rideStartIdx;
-  const p2Idx = _rideDropoffCoords.snapIdx || 0;
-  let fromIdx = Math.min(p1Idx, p2Idx);
-  let toIdx = Math.max(p1Idx, p2Idx);
-  
-  const coords = allCoords.slice(fromIdx, toIdx + 1);
-  let distKm = 0;
+function _isLoopRoute(route) {
+  if (route.stops.length < 2) return false;
+  const first = route.stops[0], last = route.stops[route.stops.length - 1];
+  return haversine(first.lat, first.lng, last.lat, last.lng) < 0.4;
+}
+
+function _buildRidePathCoords(allCoords, route, pickupIdx, dropoffIdx) {
+  if (pickupIdx <= dropoffIdx) {
+    return allCoords.slice(pickupIdx, dropoffIdx + 1);
+  }
+  // Pickup is after dropoff in route direction
+  if (_isLoopRoute(route)) {
+    // Loop: continue to end then wrap to beginning
+    return [...allCoords.slice(pickupIdx), ...allCoords.slice(0, dropoffIdx + 1)];
+  }
+  // Non-loop: passenger is going backward — reverse the segment so line runs A→B
+  return allCoords.slice(dropoffIdx, pickupIdx + 1).slice().reverse();
+}
+
+function _pathDistKm(coords) {
+  let d = 0;
   for (let i = 1; i < coords.length; i++) {
     const [lng1, lat1] = coords[i - 1];
     const [lng2, lat2] = coords[i];
-    distKm += haversine(lat1, lng1, lat2, lng2);
+    d += haversine(lat1, lng1, lat2, lng2);
   }
-  
+  return d;
+}
+
+function _drawRidePathAlongRoute() {
+  if (!_ridePickupCoords || !_rideDropoffCoords || !activeRouteId || !_rideRouteCoords.length) return;
+
+  const route = routes.find(r => r.id === activeRouteId);
+  if (!route) return;
+
+  const allCoords = buildSavedRouteCoords(route);
+  const p1Idx = _rideStartIdx;
+  const p2Idx = _rideDropoffCoords.snapIdx || 0;
+
+  const coords = _buildRidePathCoords(allCoords, route, p1Idx, p2Idx);
+  const distKm = _pathDistKm(coords);
   _lastRideDistKm = distKm;
   document.getElementById('ride-dist-val').textContent = `${distKm.toFixed(2)} km`;
   document.getElementById('ride-time-val').textContent = _fmtTravelTime(distKm);
@@ -3368,16 +3389,8 @@ async function _computeRide() {
       const allCoords = buildSavedRouteCoords(route);
       const p1Idx = _ridePickupCoords.snapIdx;
       const p2Idx = _rideDropoffCoords.snapIdx;
-      let fromIdx = Math.min(p1Idx, p2Idx);
-      let toIdx = Math.max(p1Idx, p2Idx);
-      coords = allCoords.slice(fromIdx, toIdx + 1);
-      distKm = 0;
-      for (let i = 1; i < coords.length; i++) {
-        const [lng1, lat1] = coords[i - 1];
-        const [lng2, lat2] = coords[i];
-        distKm += haversine(lat1, lng1, lat2, lng2);
-      }
-      console.log('Route-following:', route.name, 'from idx', fromIdx, 'to', toIdx, '=', distKm.toFixed(2), 'km');
+      coords = _buildRidePathCoords(allCoords, route, p1Idx, p2Idx);
+      distKm = _pathDistKm(coords);
     }
   }
   
