@@ -61,7 +61,7 @@ const INITIAL_ZOOM = 13.2;
 const INITIAL_PITCH = 55;
 const INITIAL_BEARING = -15;
 
-const OSRM = 'https://router.project-osrm.org';
+const OSRM = 'https://routing.openstreetmap.de/routed-car';
 
 // ── LTFRB Fare Matrix ─────────────────────────────
 // pre2026 = rates before March 2026 (Oct 2023 provisional)
@@ -1444,21 +1444,65 @@ function initLandmarkEvents() {
 }
 
 // ── OSRM Helpers ─────────────────────────────────
-async function getRoadSegment(fromLat, fromLng, toLat, toLng) {
-  const url = `${OSRM}/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
-  const res = await fetch(url);
-  const d = await res.json();
-  if (d.code === 'Ok' && d.routes?.[0]) {
-    return {
-      distKm: d.routes[0].distance / 1000,
-      coords: d.routes[0].geometry.coordinates
-    };
+async function snapToRoad(lat, lng) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch('https://valhalla1.openstreetmap.de/locate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ locations: [{ lon: lng, lat }], costing: 'auto' }),
+      signal: controller.signal,
+    });
+    if (!res.ok) return { lat, lng };
+    const d = await res.json();
+    const edge = d[0]?.edges?.[0];
+    if (edge?.correlated_lat != null) return { lat: edge.correlated_lat, lng: edge.correlated_lon };
+  } catch {
+  } finally { clearTimeout(timer); }
+  return { lat, lng };
+}
+
+function _decodePolyline6(encoded) {
+  let i = 0, lat = 0, lng = 0;
+  const coords = [];
+  while (i < encoded.length) {
+    let b, shift = 0, result = 0;
+    do { b = encoded.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    coords.push([lng / 1e6, lat / 1e6]); // [lng, lat] for GeoJSON
   }
-  // straight-line fallback
-  return {
-    distKm: haversine(fromLat, fromLng, toLat, toLng),
-    coords: [[fromLng, fromLat], [toLng, toLat]]
-  };
+  return coords;
+}
+
+async function getRoadSegment(fromLat, fromLng, toLat, toLng) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch('https://valhalla1.openstreetmap.de/route', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        locations: [{ lon: fromLng, lat: fromLat }, { lon: toLng, lat: toLat }],
+        costing: 'auto',
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`Valhalla ${res.status}`);
+    const d = await res.json();
+    const leg = d.trip?.legs?.[0];
+    if (leg) {
+      return { distKm: leg.summary.length, coords: _decodePolyline6(leg.shape) };
+    }
+  } catch {
+    // fall through to straight-line
+  } finally {
+    clearTimeout(timer);
+  }
+  return { distKm: haversine(fromLat, fromLng, toLat, toLng), coords: [[fromLng, fromLat], [toLng, toLat]] };
 }
 
 // ── Haversine ────────────────────────────────────
@@ -2173,47 +2217,26 @@ function setBuilderInstruction(msg, loading = false) {
     `<span class="pulse-dot"${loading ? '' : ''}></span> ${msg}`;
 }
 
-// ── Add Stop — road trace (no snapping) ──────────
-async function addDraftStop(lat, lng) {
+// ── Add Stop — snap to road then trace ───────────
+async function addDraftStop(rawLat, rawLng) {
   isSnapping = true;
-  setBuilderInstruction('Placing stop…', true);
+  setBuilderInstruction('Snapping to road…', true);
   map.getCanvas().style.cursor = 'wait';
 
   try {
-    const address = await getAddressFromCoords(lat, lng);
-
-    let roadDistFromPrev = 0;
-    let roadPathFromPrev = [];
-
-    if (draftStops.length > 0) {
-      const prev = draftStops[draftStops.length - 1];
-      const seg = await getRoadSegment(prev.lat, prev.lng, lat, lng);
-      roadDistFromPrev = seg.distKm;
-      roadPathFromPrev = seg.coords;
-    }
-
+    const prev = draftStops.length > 0 ? draftStops[draftStops.length - 1] : null;
+    const [snapped, address] = await Promise.all([
+      snapToRoad(rawLat, rawLng),
+      getAddressFromCoords(rawLat, rawLng),
+    ]);
+    const { lat, lng } = snapped;
+    const seg = prev ? await getRoadSegment(prev.lat, prev.lng, lat, lng) : null;
     draftStops.push({
       name: address || `Location ${draftStops.length + 1}`,
-      lat, lng,
-      address,
-      roadDistFromPrev,
-      roadPathFromPrev
+      lat, lng, address,
+      roadDistFromPrev: seg ? seg.distKm : 0,
+      roadPathFromPrev: seg ? seg.coords : [],
     });
-
-    refreshDraftMap();
-    renderDraftStopsList();
-    updateFareSummary();
-
-  } catch (err) {
-    // Fallback: straight line if OSRM unavailable
-    let roadDistFromPrev = 0, roadPathFromPrev = [];
-    if (draftStops.length > 0) {
-      const p = draftStops[draftStops.length - 1];
-      roadDistFromPrev = haversine(p.lat, p.lng, lat, lng);
-      roadPathFromPrev = [[p.lng, p.lat], [lng, lat]];
-    }
-    const address = await getAddressFromCoords(lat, lng);
-    draftStops.push({ name: address || `Location ${draftStops.length + 1}`, lat, lng, address, roadDistFromPrev, roadPathFromPrev });
     refreshDraftMap();
     renderDraftStopsList();
     updateFareSummary();
@@ -2470,39 +2493,26 @@ function refreshDraftMap() {
         return;
       }
 
-      draftStops[idx].lat = ll.lat;
-      draftStops[idx].lng = ll.lng;
-
-      setBuilderInstruction('Re-routing…', true);
+      setBuilderInstruction('Snapping to road…', true);
       map.getCanvas().style.cursor = 'wait';
       try {
-        if (idx > 0) {
-          const prev = draftStops[idx - 1];
-          const seg = await getRoadSegment(prev.lat, prev.lng, ll.lat, ll.lng);
-          draftStops[idx].roadDistFromPrev = seg.distKm;
-          draftStops[idx].roadPathFromPrev = seg.coords;
-        }
-        if (idx < draftStops.length - 1) {
-          const next = draftStops[idx + 1];
-          const seg = await getRoadSegment(ll.lat, ll.lng, next.lat, next.lng);
-          draftStops[idx + 1].roadDistFromPrev = seg.distKm;
-          draftStops[idx + 1].roadPathFromPrev = seg.coords;
-        }
-        getAddressFromCoords(ll.lat, ll.lng).then(addr => {
+        const snapped = await snapToRoad(ll.lat, ll.lng);
+        draftStops[idx].lat = snapped.lat;
+        draftStops[idx].lng = snapped.lng;
+        const dm = _draftMarkers[idx];
+        if (dm) dm.setLngLat([snapped.lng, snapped.lat]);
+
+        setBuilderInstruction('Re-routing…', true);
+        const [prevSeg, nextSeg] = await Promise.all([
+          idx > 0 ? getRoadSegment(draftStops[idx - 1].lat, draftStops[idx - 1].lng, snapped.lat, snapped.lng) : Promise.resolve(null),
+          idx < draftStops.length - 1 ? getRoadSegment(snapped.lat, snapped.lng, draftStops[idx + 1].lat, draftStops[idx + 1].lng) : Promise.resolve(null),
+        ]);
+        if (prevSeg) { draftStops[idx].roadDistFromPrev = prevSeg.distKm; draftStops[idx].roadPathFromPrev = prevSeg.coords; }
+        if (nextSeg) { draftStops[idx + 1].roadDistFromPrev = nextSeg.distKm; draftStops[idx + 1].roadPathFromPrev = nextSeg.coords; }
+        getAddressFromCoords(snapped.lat, snapped.lng).then(addr => {
           if (addr) { draftStops[idx].address = addr; draftStops[idx].name = addr; }
           renderDraftStopsList();
         });
-      } catch {
-        if (idx > 0) {
-          const prev = draftStops[idx - 1];
-          draftStops[idx].roadDistFromPrev = haversine(prev.lat, prev.lng, ll.lat, ll.lng);
-          draftStops[idx].roadPathFromPrev = [[prev.lng, prev.lat], [ll.lng, ll.lat]];
-        }
-        if (idx < draftStops.length - 1) {
-          const next = draftStops[idx + 1];
-          draftStops[idx + 1].roadDistFromPrev = haversine(ll.lat, ll.lng, next.lat, next.lng);
-          draftStops[idx + 1].roadPathFromPrev = [[ll.lng, ll.lat], [next.lng, next.lat]];
-        }
       } finally {
         isSnapping = false;
         refreshDraftMap();
