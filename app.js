@@ -102,16 +102,20 @@ function vehicleTag(type) {
   return `<span class="vehicle-tag vehicle-tag--${type}">${v.emoji} ${v.label}</span>`;
 }
 
+let _fareMatrixCache = null;
+
 function initFareMatrixTooltip() {
   const el = document.getElementById('fare-matrix-tooltip');
-  if (!el) return;
+  if (!el || _fareMatrixCache) return; // Skip if already cached
+  
   const rows = Object.entries(FARE_MATRIX).map(([, v]) => `
     <tr>
       <td class="fmt-vehicle">${v.emoji} ${v.label}</td>
       <td class="fmt-rate">₱${v.pre2026.base.toFixed(2)}<span class="fmt-km"> / ${v.pre2026.baseKm}km</span><span class="fmt-extra"> +₱${v.pre2026.perKm.toFixed(2)}/km</span></td>
       <td class="fmt-rate">₱${v.post2026.base.toFixed(2)}<span class="fmt-km"> / ${v.post2026.baseKm}km</span><span class="fmt-extra"> +₱${v.post2026.perKm.toFixed(2)}/km</span></td>
     </tr>`).join('');
-  el.innerHTML = `
+  
+  _fareMatrixCache = `
     <table class="fmt-table">
       <thead>
         <tr>
@@ -122,6 +126,8 @@ function initFareMatrixTooltip() {
       </thead>
       <tbody>${rows}</tbody>
     </table>`;
+  
+  el.innerHTML = _fareMatrixCache;
 }
 
 // ── State ────────────────────────────────────────
@@ -167,19 +173,38 @@ let _lastRideDistKm = null;
 const NOMINATIM = 'https://nominatim.openstreetmap.org';
 const CORS_PROXY = 'https://corsproxy.io/?';
 const NOMINATIM_OPTS = { headers: { 'User-Agent': 'E-Suyo/1.0' } };
+let _geocodeQueue = Promise.resolve();
+let _lastGeocodeTime = 0;
+const GEOCODE_MIN_DELAY = 1000; // Rate limit: 1 req/sec
+const _geocodeCache = {}; // Cache coords by place name
 
 async function getCoordsFromPlace(placeName) {
-  const delay = (ms) => new Promise(r => setTimeout(r, ms));
-  await delay(1000); // Rate limit: 1 req/sec
-  try {
-    const url = `${NOMINATIM}/search?format=json&q=${encodeURIComponent(placeName + ', Legazpi Albay')}&limit=1`;
-    const res = await fetch(CORS_PROXY + encodeURIComponent(url), NOMINATIM_OPTS);
-    const data = await res.json();
-    if (data && data[0]) {
-      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  // Check cache first
+  if (_geocodeCache[placeName]) {
+    return _geocodeCache[placeName];
+  }
+  
+  // Queue requests to enforce rate limit
+  return _geocodeQueue = _geocodeQueue.then(async () => {
+    const now = Date.now();
+    const timeSinceLastRequest = now - _lastGeocodeTime;
+    if (timeSinceLastRequest < GEOCODE_MIN_DELAY) {
+      await new Promise(r => setTimeout(r, GEOCODE_MIN_DELAY - timeSinceLastRequest));
     }
-  } catch (e) { console.warn('Geocode fail:', placeName, e); }
-  return null;
+    _lastGeocodeTime = Date.now();
+    
+    try {
+      const url = `${NOMINATIM}/search?format=json&q=${encodeURIComponent(placeName + ', Legazpi Albay')}&limit=1`;
+      const res = await fetch(CORS_PROXY + encodeURIComponent(url), NOMINATIM_OPTS);
+      const data = await res.json();
+      if (data && data[0]) {
+        const result = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+        _geocodeCache[placeName] = result; // Cache the result
+        return result;
+      }
+    } catch (e) { console.warn('Geocode fail:', placeName, e); }
+    return null;
+  });
 }
 
 // ── Local barangay polygon lookup ────────────────
@@ -264,7 +289,12 @@ let routeSources = {};
 let mapClickHandler = null;
 
 // ── Init ─────────────────────────────────────────
+let _googlePlacesInitialized = false;
+
 function _initGooglePlaces() {
+  if (_googlePlacesInitialized) return;
+  _googlePlacesInitialized = true;
+  
   const key = window.ESUYO_CONFIG?.GOOGLE_PLACES_API_KEY;
   if (!key || key.startsWith('your-')) return;
   ((g)=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await(a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n));})({ key, v: 'weekly' });
@@ -272,24 +302,40 @@ function _initGooglePlaces() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  _initGooglePlaces();
+  // Initialize device optimizations first
+  await initDeviceOptimizations();
+  
   await initAuth();
-  loadBarangays(); // async — fires fetch in background, map.on('load') handles timing
   initSupabase();
-  await loadRoutes();
+  
+  // Parallelize non-blocking data loads
+  const [barangaysLoaded, routesLoaded] = await Promise.all([
+    loadBarangays().catch(() => console.warn('Barangay load failed')),
+    loadRoutes().catch(() => console.warn('Routes load failed'))
+  ]);
+  
   initMap();
   initAreaFilter();
   bindEvents();
   initFareMatrixTooltip();
   initMobileSidebarCollapse(); // Collapse sidebar on mobile by default
+  
+  // Defer Google Places init until builder is opened (lazy load)
 });
 
 // ── Persistence ──────────────────────────────────
 async function loadRoutes() {
-  const { data, error } = await _supabase.from('routes').select('*').order('created_at', { ascending: true });
-  if (error) { console.error('Failed to load routes from DB:', error); routes = []; return; }
-  routes = data;
-  localStorage.setItem('esuyo_routes', JSON.stringify(routes)); // cache
+  try {
+    const { data, error } = await _supabase.from('routes').select('*').order('created_at', { ascending: true });
+    if (error) throw error;
+    routes = data;
+    localStorage.setItem('esuyo_routes', JSON.stringify(routes)); // cache
+  } catch (error) {
+    console.error('Failed to load routes from DB:', error);
+    // Try to load from cache if available
+    const cached = localStorage.getItem('esuyo_routes');
+    routes = cached ? JSON.parse(cached) : [];
+  }
 }
 function saveRoutes() {
   localStorage.setItem('esuyo_routes', JSON.stringify(routes));
@@ -297,19 +343,22 @@ function saveRoutes() {
 
 // ── Map Init ──────────────────────────────────────
 function initMap() {
+  // Reduce max tile cache on mobile to save memory
+  const maxTileCache = DEVICE_CONFIG.isMobile() ? 100 : 200;
+  
   map = new maplibregl.Map({
     container: 'map',
     style: currentMapStyle,
     center: MAP_CENTER, zoom: INITIAL_ZOOM,
     pitch: INITIAL_PITCH, bearing: INITIAL_BEARING,
     minPitch: INITIAL_PITCH, maxPitch: INITIAL_PITCH,
-    maxZoom: 18, minZoom: 10, antialias: true,
+    maxZoom: 18, minZoom: 10, antialias: !DEVICE_CONFIG.isMobile(), // Disable antialiasing on mobile
     renderWorldCopies: false,
     // Lock camera to the Philippines boundaries only
     // Prevents users from panning outside PH and restricts tile loading
     maxBounds: [[116.4, 4.6], [126.8, 20.9]],
-    fadeDuration: 100,
-    maxTileCacheSize: 200,
+    fadeDuration: DEVICE_CONFIG.isReducedMotion() ? 0 : 100,
+    maxTileCacheSize: maxTileCache,
   });
 
   map.on('load', () => {
@@ -373,6 +422,12 @@ let _demProtocolRegistered = false;
 function addTerrain() {
   try {
     if (map.getSource('terrain-dem')) return;
+    
+    // Skip terrain on low-bandwidth connections
+    if (DEVICE_CONFIG.isLowBandwidth()) {
+      console.warn('Skipping terrain on low-bandwidth connection');
+      return;
+    }
 
     // Custom protocol: fetches AWS terrarium tiles, then clamps every pixel
     // below MIN_ELEV_M to sea level before MapLibre decodes the DEM.
@@ -2207,6 +2262,9 @@ function openBuilder(routeId = null) {
   builderOpen = true;
   if (activePopup) { activePopup.remove(); activePopup = null; }
   document.getElementById('route-detail').classList.remove('visible');
+  
+  // Lazy load Google Places when builder opens
+  _initGooglePlaces();
 
   if (routeId) {
     const r = routes.find(x => x.id === routeId);
@@ -3403,11 +3461,96 @@ function exitRideMode() {
   _setRideAddress('ride-dropoff-addr', '—');
 }
 
-// ── Event Bindings ────────────────────────────────
-// ── Mobile Sidebar Auto-Collapse ────────────────
-function isMobileView() {
-  return window.innerWidth < 900; // Collapse on tablets and phones
+// ── Network & Device Detection ───────────────────
+const DEVICE_CONFIG = {
+  isMobile: () => window.innerWidth < 900,
+  isLowBandwidth: () => {
+    // Check for slow/slow-2g/3g connection
+    const conn = navigator.connection?.effectiveType;
+    return conn && ['slow-2g', '2g', '3g'].includes(conn);
+  },
+  isReducedMotion: () => {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  },
+  isBatteryLow: async () => {
+    if ('getBattery' in navigator) {
+      const battery = await navigator.getBattery?.();
+      return battery?.level < 0.2 && !battery?.charging;
+    }
+    return false;
+  },
+  supportsTouchEvents: () => 'ontouchstart' in window || navigator.maxTouchPoints > 0
+};
+
+// Apply device-specific optimizations on startup
+async function initDeviceOptimizations() {
+  if (DEVICE_CONFIG.isMobile()) {
+    // Reduce terrain detail on mobile
+    TERRAIN_DETAIL_SCALE = 0.6;
+    // Disable heavy 3D effects
+    document.body.classList.add('mobile-mode');
+  }
+  
+  if (DEVICE_CONFIG.isLowBandwidth()) {
+    // Use lower resolution tiles
+    document.body.classList.add('low-bandwidth');
+    // Disable animations
+    document.body.classList.add('reduce-motion');
+  }
+  
+  if (DEVICE_CONFIG.isReducedMotion()) {
+    document.body.classList.add('reduce-motion');
+  }
+  
+  // Haptic feedback on supported devices
+  if (DEVICE_CONFIG.supportsTouchEvents() && 'vibrate' in navigator) {
+    window.haptic = (pattern = 10) => navigator.vibrate?.(pattern);
+  } else {
+    window.haptic = () => {}; // Fallback
+  }
 }
+
+// ── Event Optimization ──────────────────────────
+// Debounce scroll/resize events on mobile
+let _resizeTimeout;
+let _lastScreenOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+
+window.addEventListener('resize', () => {
+  clearTimeout(_resizeTimeout);
+  _resizeTimeout = setTimeout(() => {
+    const newOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+    if (newOrientation !== _lastScreenOrientation) {
+      _lastScreenOrientation = newOrientation;
+      // Handle orientation change
+      if (map) {
+        setTimeout(() => map.resize(), 200);
+      }
+    }
+    // Re-check mobile mode
+    if (DEVICE_CONFIG.isMobile()) {
+      document.getElementById('sidebar').classList.add('collapsed');
+    }
+  }, 150);
+});
+
+// Pause animations when page is not visible (battery saver)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    document.body.classList.add('page-hidden');
+  } else {
+    document.body.classList.remove('page-hidden');
+  }
+});
+
+// Add haptic feedback to buttons
+function addHapticFeedback(element) {
+  if (!element || !window.haptic) return;
+  element.addEventListener('click', () => {
+    window.haptic?.(10);
+  });
+}
+
+let TERRAIN_DETAIL_SCALE = 1; // Will be adjusted by device config
 
 function initMobileSidebarCollapse() {
   const sb = document.getElementById('sidebar');

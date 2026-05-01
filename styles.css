@@ -40,9 +40,28 @@ html, body {
   color: var(--on-surface);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  -webkit-touch-callout: none; /* Prevent long-tap callout on iOS */
+  touch-action: manipulation; /* Prevent double-tap zoom delay on mobile */
 }
 
 h1,h2,h3,h4 { font-family: 'Lexend', sans-serif; font-weight: 700; }
+
+/* Reduce motion on mobile to save battery */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Prevent text selection interference on mobile */
+@media (max-width: 900px) {
+  .btn-icon, .header-btn, .map-control-btn, input, button {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
 
 /* ── Auth Modal ──────────────────────────────── */
 #auth-overlay {
@@ -92,12 +111,18 @@ h1,h2,h3,h4 { font-family: 'Lexend', sans-serif; font-weight: 700; }
 }
 .auth-error.hidden { display: none; }
 .auth-btn-primary {
-  width: 100%; padding: 11px; border-radius: var(--radius-sm);
+  width: 100%; padding: 14px; border-radius: var(--radius-sm);
   background: var(--primary-container); border: none; color: #fff;
   font-size: 0.9rem; font-weight: 700; cursor: pointer;
   transition: background var(--ease); font-family: 'Lexend', sans-serif;
+  min-height: 48px; /* Ensure minimum touch target size */
 }
-.auth-btn-primary:hover { background: var(--primary); }
+.auth-btn-primary:hover {
+  background: var(--primary);
+}
+.auth-btn-primary:active {
+  transform: scale(0.98);
+}
 .auth-divider {
   display: flex; align-items: center; gap: 10px;
   color: var(--outline); font-size: 0.75rem;
@@ -208,12 +233,20 @@ body.viewer-mode #role-badge {
 }
 
 .header-btn {
-  padding: 7px 16px; border-radius: var(--radius-sm);
+  padding: 8px 16px; border-radius: var(--radius-sm);
   background: var(--primary-container); color: #fff;
   border: none; font-size: 0.82rem; font-weight: 600;
   cursor: pointer; transition: background var(--ease), transform var(--ease);
+  min-height: 44px; /* Ensure minimum touch target size on mobile */
+  display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent; /* Remove default iOS tap highlight */
 }
-.header-btn:hover { background: var(--primary); transform: translateY(-1px); }
+.header-btn:hover { 
+  background: var(--primary);
+}
+.header-btn:active {
+  transform: scale(0.96);
+}
 
 /* ── Barangay Info Card ──────────────────────── */
 #brgy-info-card {
@@ -1656,6 +1689,14 @@ body.viewer-mode #role-badge {
     --header-h: 52px;
     --sidebar-w: 100%;
     --builder-w: 100%;
+    --ease: 0.2s cubic-bezier(0.2, 0, 0, 1); /* Shorter animations on mobile */
+  }
+
+  /* Disable heavy animations on mobile — use will-change sparingly */
+  @media (prefers-reduced-motion: no-preference) {
+    :root {
+      --ease: 0.2s cubic-bezier(0.2, 0, 0, 1);
+    }
   }
 
   /* ── Header ── */
@@ -1667,7 +1708,18 @@ body.viewer-mode #role-badge {
   #btn-export { display: none; }
   .logo-text { font-size: 1.15rem; }
   .badge.admin { display: none; }
-  .header-btn { padding: 6px 10px; font-size: 0.75rem; }
+  .header-btn { padding: 8px 10px; font-size: 0.75rem; min-height: 40px; }
+
+  /* ── Input optimization for mobile ── */
+  input[type="text"],
+  input[type="password"],
+  input[type="color"],
+  select,
+  textarea {
+    font-size: 16px; /* Prevents auto-zoom on iOS focus */
+    min-height: 44px;
+    padding: 12px;
+  }
 
   /* ── Sidebar → bottom sheet ── */
   #sidebar {
@@ -1675,14 +1727,17 @@ body.viewer-mode #role-badge {
     width: 100%; height: 60vh;
     border-radius: var(--radius) var(--radius) 0 0;
     transform: translateY(0); opacity: 1;
+    will-change: transform; /* Optimize for mobile sheet animations */
   }
-  #sidebar.collapsed { transform: translateY(100%); opacity: 0; }
+  #sidebar.collapsed { transform: translateY(100%); opacity: 0; pointer-events: none; }
 
   /* Toggle always visible on mobile, pinned bottom-left */
   #sidebar-toggle {
     display: flex !important;
     top: auto; bottom: 20px; left: 16px;
     z-index: 110;
+    width: 48px; height: 48px; /* Proper touch target */
+    border-radius: 50%;
   }
 
   /* ── Builder panel → bottom sheet ── */
@@ -1691,6 +1746,7 @@ body.viewer-mode #role-badge {
     width: 100%; height: 88vh;
     border-radius: var(--radius) var(--radius) 0 0;
     transform: translateY(calc(100% + 20px));
+    will-change: transform;
   }
   #builder-panel.open { transform: translateY(0); }
 
@@ -1700,15 +1756,16 @@ body.viewer-mode #role-badge {
     width: 100%; height: 72vh;
     border-radius: var(--radius) var(--radius) 0 0;
     transform: translateY(calc(100% + 20px));
+    will-change: transform;
   }
   #route-detail.visible { transform: translateY(0); }
 
   /* ── Map controls ── */
   #custom-controls { bottom: 16px; right: 12px; gap: 4px; }
-  .map-control-btn { width: 40px; height: 40px; border-radius: 10px; font-size: 0.95rem; }
+  .map-control-btn { width: 44px; height: 44px; border-radius: 10px; font-size: 0.95rem; }
   .map-control-btn .label { display: none; }
-  .lm-split-btn .lm-main { width: 40px; }
-  .lm-split-btn .lm-arrow { width: 18px; }
+  .lm-split-btn .lm-main { width: 44px; }
+  .lm-split-btn .lm-arrow { width: 20px; }
 
   /* ── Place search panel → full-width from top ── */
   #place-search-panel {
@@ -1742,8 +1799,8 @@ body.viewer-mode #role-badge {
     flex-wrap: wrap; gap: 10px;
   }
   /* Fix slideUp animation for these bars on mobile (no translateX needed) */
-  #reposition-bar  { animation: slideUpMobile 0.2s ease; }
-  #edit-style-bar  { animation: slideUpMobile 0.2s ease; }
+  #reposition-bar  { animation: slideUpMobile 0.15s ease; }
+  #edit-style-bar  { animation: slideUpMobile 0.15s ease; }
   @keyframes slideUpMobile {
     from { opacity: 0; transform: translateY(12px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -1755,6 +1812,12 @@ body.viewer-mode #role-badge {
   /* ── Builder row wraps on narrow screens ── */
   .builder-row { flex-wrap: wrap; }
   .meta-field { min-width: calc(50% - 4px); }
+  
+  /* Optimize list items for touch */
+  .route-item, .landmark-item {
+    min-height: 48px; /* Touch target size */
+    padding: 12px 10px;
+  }
 }
 
 @keyframes orb-jump {

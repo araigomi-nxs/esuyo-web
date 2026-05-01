@@ -2,9 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
   <title>E-Suyo — Route Admin Panel</title>
+  <meta name="apple-mobile-web-app-capable" content="true">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="E-Suyo">
   <meta name="theme-color" content="#0046C7">
+  <meta name="description" content="E-Suyo Route Admin Panel for Legazpi City transportation">
+  <meta name="color-scheme" content="light">
+  <meta name="mobile-web-app-capable" content="yes">
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -18,6 +24,10 @@
 
   <!-- MapLibre CSS (non-blocking) -->
   <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+
+  <!-- Preload critical assets -->
+  <link rel="preload" href="legazpi-barangays.json" as="fetch" crossorigin>
+  <link rel="preload" href="assets/esuyo_logo.png" as="image">
 
   <!-- All scripts deferred: download in parallel with HTML parse, execute in order after -->
   <script defer src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
