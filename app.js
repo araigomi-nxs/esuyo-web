@@ -281,6 +281,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initAreaFilter();
   bindEvents();
   initFareMatrixTooltip();
+  initMobileSidebarCollapse(); // Collapse sidebar on mobile by default
 });
 
 // ── Persistence ──────────────────────────────────
@@ -932,12 +933,63 @@ function addBarangayLayers() {
   });
 }
 
+// Get all routes passing through a barangay
+function getRoutesInBarangay(brgyName) {
+  return routes.filter(route => {
+    return route.stops && route.stops.some(stop => {
+      const brgy = getBrgyFromCoords(stop.lng, stop.lat);
+      return brgy === brgyName;
+    });
+  });
+}
+
+// Get all landmarks in a barangay
+function getLandmarksInBarangay(brgyName) {
+  return getAllLandmarks().filter(landmark => {
+    const brgy = getBrgyFromCoords(landmark.lng, landmark.lat);
+    return brgy === brgyName;
+  });
+}
+
 function selectBarangay(name, city, geometry) {
+  // Clear previous selection first (before removing popup)
+  try { map.setFilter('brgy-fill-selected', ['==', ['get', 'name'], null]); } catch {}
+  try { map.setFilter('brgy-line-selected', ['==', ['get', 'name'], null]); } catch {}
+  
+  // Remove old popup if it exists
+  if (_brgyPopup) {
+    _brgyPopup.remove();
+    _brgyPopup = null;
+  }
+  
+  // Now set the new selection
   _selectedBarangay = name;
   try { map.setFilter('brgy-fill-selected', ['==', ['get', 'name'], name]); } catch {}
   try { map.setFilter('brgy-line-selected', ['==', ['get', 'name'], name]); } catch {}
-  if (_brgyPopup) { _brgyPopup.remove(); _brgyPopup = null; }
   const center = _polygonCentroid(geometry);
+  
+  // Get routes and landmarks in this barangay
+  const brgyRoutes = getRoutesInBarangay(name);
+  const brgyLandmarks = getLandmarksInBarangay(name);
+  
+  const routesHTML = brgyRoutes.length > 0 
+    ? `<div class="brgy-section">
+        <div class="brgy-section-title">Routes (${brgyRoutes.length})</div>
+        <div class="brgy-routes-list">
+          ${brgyRoutes.map(r => `<div class="brgy-route-item" style="border-left: 3px solid ${escHtml(r.color || '#0046C7')}; padding-left: 8px;">${escHtml(r.name || 'Unnamed Route')}</div>`).join('')}
+        </div>
+      </div>`
+    : '';
+  
+  const landmarksHTML = brgyLandmarks.length > 0
+    ? `<div class="brgy-section">
+        <div class="brgy-section-title">Landmarks (${brgyLandmarks.length})</div>
+        <div class="brgy-landmarks-list">
+          ${brgyLandmarks.map(l => `<div class="brgy-landmark-item">📍 ${escHtml(l.name || 'Unnamed')}</div>`).join('')}
+        </div>
+      </div>`
+    : '';
+  
   _brgyPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: true, offset: 0 })
     .setLngLat(center)
     .setHTML(`<div class="brgy-popup">
@@ -947,20 +999,17 @@ function selectBarangay(name, city, geometry) {
       </div>
       <div class="brgy-card-name">${escHtml(name)}</div>
       <div class="brgy-card-city">${escHtml(city || 'Legazpi City')}</div>
+      ${routesHTML}
+      ${landmarksHTML}
     </div>`)
     .addTo(map);
-  _brgyPopup.on('close', () => {
-    _brgyPopup = null;
-    _selectedBarangay = null;
-    try { map.setFilter('brgy-fill-selected', ['==', ['get', 'name'], '']); } catch {}
-    try { map.setFilter('brgy-line-selected', ['==', ['get', 'name'], '']); } catch {}
-  });
+  _brgyPopup.on('close', clearBarangaySelection);
 }
 
 function clearBarangaySelection() {
   _selectedBarangay = null;
-  try { map.setFilter('brgy-fill-selected', ['==', ['get', 'name'], '']); } catch {}
-  try { map.setFilter('brgy-line-selected', ['==', ['get', 'name'], '']); } catch {}
+  try { map.setFilter('brgy-fill-selected', ['==', ['get', 'name'], null]); } catch {}
+  try { map.setFilter('brgy-line-selected', ['==', ['get', 'name'], null]); } catch {}
   if (_brgyPopup) { _brgyPopup.remove(); _brgyPopup = null; }
 }
 
@@ -3049,7 +3098,7 @@ function toggle3D() {
   if (map.getLayer('bld-3d')) map.setLayoutProperty('bld-3d', 'visibility', vis);
 }
 
-let _shaderOn = true;
+let _shaderOn = false;
 function toggleShader() {
   _shaderOn = !_shaderOn;
   document.getElementById('btn-shader').classList.toggle('active', _shaderOn);
@@ -3355,6 +3404,36 @@ function exitRideMode() {
 }
 
 // ── Event Bindings ────────────────────────────────
+// ── Mobile Sidebar Auto-Collapse ────────────────
+function isMobileView() {
+  return window.innerWidth < 900; // Collapse on tablets and phones
+}
+
+function initMobileSidebarCollapse() {
+  const sb = document.getElementById('sidebar');
+  const toggle = document.getElementById('sidebar-toggle');
+  
+  // Collapse sidebar on initial load if mobile
+  if (isMobileView()) {
+    sb.classList.add('collapsed');
+    toggle.classList.add('visible');
+  } else {
+    sb.classList.remove('collapsed');
+    toggle.classList.remove('visible');
+  }
+  
+  // Re-check on window resize
+  window.addEventListener('resize', () => {
+    if (isMobileView()) {
+      sb.classList.add('collapsed');
+      toggle.classList.add('visible');
+    } else {
+      sb.classList.remove('collapsed');
+      toggle.classList.remove('visible');
+    }
+  });
+}
+
 function bindEvents() {
   document.getElementById('btn-new-route').addEventListener('click', () => openBuilder());
   document.getElementById('route-search').addEventListener('input', e => renderRouteList(e.target.value));
@@ -3454,7 +3533,6 @@ function bindEvents() {
   document.getElementById('lf-close').addEventListener('click', toggleLandmarkFilter);
   document.getElementById('lf-show-all').addEventListener('click', () => setAllLandmarkCategories(true));
   document.getElementById('lf-hide-all').addEventListener('click', () => setAllLandmarkCategories(false));
-  document.getElementById('btn-3d').addEventListener('click', toggle3D);
   document.getElementById('btn-shader').addEventListener('click', toggleShader);
   document.getElementById('btn-map-style').addEventListener('click', toggleMapStyle);
   document.getElementById('btn-reset').addEventListener('click', () => {
