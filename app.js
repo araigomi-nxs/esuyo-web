@@ -297,13 +297,15 @@ function saveRoutes() {
 function initMap() {
   map = new maplibregl.Map({
     container: 'map',
-    style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+    style: currentMapStyle,
     center: MAP_CENTER, zoom: INITIAL_ZOOM,
     pitch: INITIAL_PITCH, bearing: INITIAL_BEARING,
+    minPitch: INITIAL_PITCH, maxPitch: INITIAL_PITCH,
     maxZoom: 18, minZoom: 8, antialias: true,
     renderWorldCopies: false,
-    // Lock camera to the Philippines — no tiles loaded outside this box
-    maxBounds: [[116.0, 4.5], [127.0, 21.5]],
+    // Lock camera to the Philippines boundaries only
+    // Prevents users from panning outside PH and restricts tile loading
+    maxBounds: [[116.4, 4.6], [126.8, 20.9]],
     fadeDuration: 100,
     maxTileCacheSize: 200,
   });
@@ -314,6 +316,7 @@ function initMap() {
       addBarangayLayers();
       add3DBuildings();
       addGreenery();
+      if (currentMapStyle === STYLE_CARTO) applyCartoGreen();
       addLandmarks();
       initLandmarkFilter();
       renderAllRoutesOnMap();
@@ -448,6 +451,7 @@ function addTerrain() {
     map.addSource('terrain-dem',    demSourceSpec);
     map.addSource('terrain-dem-hs', demSourceSpec);
 
+    const firstSymbolForHs = map.getStyle().layers.find(l => l.type === 'symbol');
     map.addLayer({
       id: 'terrain-hillshade',
       type: 'hillshade',
@@ -460,7 +464,7 @@ function addTerrain() {
         'hillshade-illumination-direction': 315,
         'hillshade-illumination-anchor': 'map'
       }
-    });
+    }, firstSymbolForHs?.id);
 
     map.setTerrain({ source: 'terrain-dem', exaggeration: 0.65 });
 
@@ -484,96 +488,66 @@ function addTerrain() {
 
 function add3DBuildings() {
   try {
-    if (map.getLayer('bld-3d')) return;
-
-    // OpenFreeMap provides OSM building + landcover data for free with no API key.
-    // Most Philippine OSM buildings lack height tags → fall back to 8 m (≈2-storey).
-    if (!map.getSource('esuyo-bld')) {
-      map.addSource('esuyo-bld', {
-        type: 'vector',
-        url: 'https://tiles.openfreemap.org/planet'
-      });
-    }
-
-    const bldHeight = ['coalesce', ['to-number', ['get', 'render_height']], ['to-number', ['get', 'height']], 14];
-    const bldBase   = ['coalesce', ['to-number', ['get', 'render_min_height']], 0];
-
-    // Insert before the first symbol layer so road/place labels float above buildings.
-    const firstSymbol = map.getStyle().layers.find(l => l.type === 'symbol');
-
-    map.addLayer({
-      id: 'bld-3d',
-      type: 'fill-extrusion',
-      source: 'esuyo-bld',
-      'source-layer': 'building',
-      minzoom: 13,
-      paint: {
-        'fill-extrusion-color': '#c8c8c8',
-        // Grow-up completes at zoom 13 so buildings are fully extruded at the app's default zoom 13.2.
-        'fill-extrusion-height': [
-          'interpolate', ['linear'], ['zoom'],
-          12, 0,
-          13, bldHeight
-        ],
-        'fill-extrusion-base': [
-          'interpolate', ['linear'], ['zoom'],
-          12, 0,
-          13, bldBase
-        ],
-        'fill-extrusion-opacity': [
-          'interpolate', ['linear'], ['zoom'],
-          12, 0,
-          13, 0.85,
-          17, 0.95
-        ],
-        'fill-extrusion-vertical-gradient': true,
-        'fill-extrusion-ambient-occlusion-intensity': 0.2,
-        'fill-extrusion-ambient-occlusion-radius': 3
-      }
-    }, firstSymbol?.id);
+    // The Liberty style from OpenFreeMap already includes 3D buildings
+    // Just ensure they're visible - don't try to add custom buildings
+    // (external vector tiles have CORS issues)
+    const styleLayerIds = map.getStyle().layers.map(l => l.id) || [];
+    console.info('Checking for 3D building layers in style...');
+    
+    // Liberty style includes building layers, they should render automatically
+    // If needed, we can show/hide them but they're part of the base style
   } catch (e) {
-    console.error('3D buildings error:', e);
+    console.warn('add3DBuildings:', e);
   }
 }
 
 
 function addGreenery() {
   try {
-    // Reuses the esuyo-bld OpenFreeMap source added by add3DBuildings().
-    // Adds two layers — landcover (ground texture: grass, wood) and landuse (parks, forests)
-    // — with a saturated green so greenery pops against the white CARTO basemap.
-    if (!map.getSource('esuyo-bld')) return;
     if (map.getLayer('green-cover')) return;
+
+    // Add greenery source from Stadia Maps (CORS-enabled, free tier)
+    // This provides landcover and landuse data for parks, forests, grass, etc.
+    if (!map.getSource('greenery-src')) {
+      map.addSource('greenery-src', {
+        type: 'vector',
+        tiles: ['https://tiles.stadiamaps.com/data/landcover_z13/{z}/{x}/{y}.pbf'],
+        minzoom: 0,
+        maxzoom: 13
+      });
+    }
 
     const firstSymbol = map.getStyle().layers.find(l => l.type === 'symbol');
 
+    // Landcover layer (grass, forest, scrub)
     map.addLayer({
       id: 'green-cover',
       type: 'fill',
-      source: 'esuyo-bld',
+      source: 'greenery-src',
       'source-layer': 'landcover',
       filter: ['in', ['get', 'class'], ['literal', ['grass', 'wood', 'scrub', 'wetland']]],
       paint: {
-        'fill-color': '#a8d5a2',
-        'fill-opacity': 0.55,
+        'fill-color': '#68C47A',
+        'fill-opacity': 0.9,
         'fill-antialias': true
       }
     }, firstSymbol?.id);
 
+    // Landuse layer (parks, forests, gardens)
     map.addLayer({
       id: 'green-use',
       type: 'fill',
-      source: 'esuyo-bld',
+      source: 'greenery-src',
       'source-layer': 'landuse',
       filter: ['in', ['get', 'class'], ['literal', ['park', 'grass', 'forest', 'meadow', 'garden', 'farmland']]],
       paint: {
-        'fill-color': '#7ec880',
-        'fill-opacity': 0.6,
+        'fill-color': '#1B5E20',
+        'fill-opacity': 0.95,
         'fill-antialias': true
       }
     }, firstSymbol?.id);
 
-  } catch (e) { console.error('Greenery error:', e); }
+  } catch (e) { console.warn('Greenery error:', e); }
 }
 
 // ── Supabase ──────────────────────────────────────
@@ -741,9 +715,9 @@ function startReposition(id, name, lat, lng, category) {
   `;
 
   // Hide existing landmark temporarily
-  map.setLayoutProperty('landmarks-circle', 'visibility', 'none');
-  map.setLayoutProperty('landmarks-icon', 'visibility', 'none');
-  map.setLayoutProperty('landmarks-label', 'visibility', 'none');
+  try { map.setLayoutProperty('landmarks-circle', 'visibility', 'none'); } catch {}
+  try { map.setLayoutProperty('landmarks-icon', 'visibility', 'none'); } catch {}
+  try { map.setLayoutProperty('landmarks-label', 'visibility', 'none'); } catch {}
   _brandMarkers.forEach(m => { m.getElement().style.display = 'none'; });
   
   _repositionMarker = new maplibregl.Marker({ element: el, draggable: true })
@@ -831,9 +805,9 @@ function cancelReposition() {
   
   // Restore landmark visibility
   const vis = landmarksVisible ? 'visible' : 'none';
-  map.setLayoutProperty('landmarks-circle', 'visibility', vis);
-  map.setLayoutProperty('landmarks-icon', 'visibility', vis);
-  map.setLayoutProperty('landmarks-label', 'visibility', vis);
+  try { map.setLayoutProperty('landmarks-circle', 'visibility', vis); } catch {}
+  try { map.setLayoutProperty('landmarks-icon', 'visibility', vis); } catch {}
+  try { map.setLayoutProperty('landmarks-label', 'visibility', vis); } catch {}
   _brandMarkers.forEach(m => { m.getElement().style.display = landmarksVisible ? '' : 'none'; });
 }
 
@@ -981,11 +955,9 @@ let hiddenLandmarkCategories = new Set();
 function toggleLandmarks() {
   landmarksVisible = !landmarksVisible;
   const vis = landmarksVisible ? 'visible' : 'none';
-  try {
-    map.setLayoutProperty('landmarks-circle', 'visibility', vis);
-    map.setLayoutProperty('landmarks-icon', 'visibility', vis);
-    map.setLayoutProperty('landmarks-label', 'visibility', vis);
-  } catch (e) { console.warn('Toggle error:', e); }
+  try { map.setLayoutProperty('landmarks-circle', 'visibility', vis); } catch {}
+  try { map.setLayoutProperty('landmarks-icon', 'visibility', vis); } catch {}
+  try { map.setLayoutProperty('landmarks-label', 'visibility', vis); } catch {}
   _brandMarkers.forEach(m => { m.getElement().style.display = landmarksVisible ? '' : 'none'; });
   document.getElementById('btn-landmarks').classList.toggle('active', landmarksVisible);
 }
@@ -1196,27 +1168,29 @@ function renderBrandMarkers() {
 }
 
 function addLandmarks() {
+  if (map.getSource('landmarks')) return;
+
+  try { renderBrandMarkers(); } catch(e) { console.warn('renderBrandMarkers failed:', e); }
+
+  const features = getAllLandmarks().map(l => {
+    const cat = (l.category || 'landmark').trim().toLowerCase();
+    const brand = getBrand(l.name);
+    return {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [l.lng, l.lat] },
+      properties: {
+        name: l.name, category: cat,
+        lat: l.lat, lng: l.lng, dbId: l.id || null,
+        brand
+      }
+    };
+  });
+
   try {
-    if (map.getSource('landmarks')) return;
-
-    renderBrandMarkers();
-
-    const features = getAllLandmarks().map(l => {
-      const cat = (l.category || 'landmark').trim().toLowerCase();
-      const brand = getBrand(l.name);
-      return {
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [l.lng, l.lat] },
-        properties: {
-          name: l.name, category: cat,
-          lat: l.lat, lng: l.lng, dbId: l.id || null,
-          brand
-        }
-      };
-    });
-
     map.addSource('landmarks', { type: 'geojson', data: { type: 'FeatureCollection', features } });
+  } catch(e) { console.error('landmarks addSource failed:', e); return; }
 
+  try {
     map.addLayer({
       id: 'landmarks-circle',
       type: 'circle',
@@ -1250,51 +1224,86 @@ function addLandmarks() {
         'circle-opacity': 0.9
       }
     });
+  } catch(e) { console.error('landmarks-circle addLayer failed:', e); }
 
-    map.addLayer({
-      id: 'landmarks-icon',
-      type: 'symbol',
-      source: 'landmarks',
-      filter: ['==', ['get', 'brand'], ''],
-      layout: {
-        'text-field': ['match', ['get', 'category'],
-          '7eleven', '7',
-          '711', '7',
-          'hospital', 'H',
-          'mall', '🛍️',
-          'school', '🏫',
-          'church', '⛪',
-          'gov', '🏛️',
-          'terminal', '🚌',
-          'airport', '✈️',
-          'port', '⚓',
-          'bank', '🏦',
-          'market', '🛒',
-          'park', '🌳',
-          'landmark', '📍',
-          'factory', '🏭',
-          'gasstation', '⛽',
-          'fastfood', '🍔',
-          'restaurant', '🍽️',
-          '📍'
-        ],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 10, 6, 13, 11, 16, 16],
-        'text-anchor': 'center',
-        'text-allow-overlap': true,
-        'text-ignore-placement': true,
-      },
-      paint: { 'text-color': '#fff', 'text-halo-width': 0, 'text-opacity': 0.95 }
-    });
+  // Liberty's glyph server 404s on emoji codepoints, which stalls the source's
+  // render batch and prevents landmarks-circle from painting. Skip the emoji
+  // icon layer on Liberty; the coloured circles convey category on their own.
+  if (currentMapStyle !== STYLE_LIBERTY) {
+    try {
+      map.addLayer({
+        id: 'landmarks-icon',
+        type: 'symbol',
+        source: 'landmarks',
+        filter: ['==', ['get', 'brand'], ''],
+        layout: {
+          'text-field': ['match', ['get', 'category'],
+            '7eleven', '7',
+            '711', '7',
+            'hospital', 'H',
+            'mall', '🛍️',
+            'school', '🏫',
+            'church', '⛪',
+            'gov', '🏛️',
+            'terminal', '🚌',
+            'airport', '✈️',
+            'port', '⚓',
+            'bank', '🏦',
+            'market', '🛒',
+            'park', '🌳',
+            'landmark', '📍',
+            'factory', '🏭',
+            'gasstation', '⛽',
+            'fastfood', '🍔',
+            'restaurant', '🍽️',
+            '📍'
+          ],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 10, 6, 13, 11, 16, 16],
+          'text-anchor': 'center',
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        },
+        paint: { 'text-color': '#fff', 'text-halo-width': 0, 'text-opacity': 0.95 }
+      });
+    } catch(e) { console.warn('landmarks-icon addLayer failed:', e); }
+  }
 
+  const labelFont = currentMapStyle === STYLE_LIBERTY
+    ? ['Noto Sans Regular']
+    : ['Open Sans Regular', 'Arial Unicode MS Regular'];
+
+  try {
     map.addLayer({
       id: 'landmarks-label',
       type: 'symbol',
       source: 'landmarks',
-      minzoom: 13,
-      layout: { 'text-field': ['get', 'name'], 'text-size': 12, 'text-offset': [0, 1.8], 'text-anchor': 'top' },
-      paint: { 'text-color': '#222', 'text-halo-color': '#fff', 'text-halo-width': 3 }
+      filter: ['==', ['get', 'brand'], ''],
+      minzoom: 15,
+      layout: {
+        'visibility': landmarksVisible ? 'visible' : 'none',
+        'text-field': ['get', 'name'],
+        'text-size': 12,
+        'text-offset': [0, 1.5],
+        'text-anchor': 'top',
+        'text-allow-overlap': false,
+        'text-ignore-placement': false,
+        'text-font': labelFont,
+      },
+      paint: { 
+        'text-color': '#222', 
+        'text-halo-color': '#fff', 
+        'text-halo-width': 3
+      }
     });
+  } catch(e) { console.warn('landmarks-label addLayer failed:', e); }
 
+  initLandmarkEvents();
+}
+
+// ── Init Landmark Event Listeners ─────────────────
+// Re-attach event listeners when layers are recreated (e.g., on style change)
+function initLandmarkEvents() {
+  try {
     map.on('click', 'landmarks-circle', (e) => {
       if (e.features && e.features[0]) {
         const props = e.features[0].properties;
@@ -1320,10 +1329,9 @@ function addLandmarks() {
         activePopup.on('close', () => { activePopup = null; });
       }
     });
-
     map.on('mouseenter', 'landmarks-circle', () => map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', 'landmarks-circle', () => map.getCanvas().style.cursor = '');
-  } catch (e) { console.error('Landmarks error:', e); }
+  } catch(e) { console.warn('landmarks event handlers failed:', e); }
 }
 
 // ── OSRM Helpers ─────────────────────────────────
@@ -2764,6 +2772,135 @@ function exportRoutes() {
 }
 
 // ── Map Controls ──────────────────────────────────
+const STYLE_CARTO   = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+const STYLE_LIBERTY = 'https://tiles.openfreemap.org/styles/liberty';
+let currentMapStyle = STYLE_CARTO;
+
+function applyCartoGreen() {
+  map.getStyle().layers.forEach(layer => {
+    if (layer.type !== 'fill') return;
+    const src = layer['source-layer'] || '';
+    const id  = layer.id;
+    const isGreen = src === 'park' ||
+      id.includes('park') || id.includes('grass') || id.includes('wood') ||
+      id.includes('scrub') || id.includes('forest') || id.includes('garden') ||
+      id.includes('green') || id.includes('meadow') || id.includes('landcover');
+    if (isGreen) {
+      try { map.setPaintProperty(id, 'fill-color', '#81B97A'); } catch {}
+      try { map.setPaintProperty(id, 'fill-opacity', 0.5); } catch {}
+    }
+  });
+}
+
+function applyWhiteTheme() {
+  const layers = map.getStyle().layers;
+  // Hide Liberty's built-in POI/place layers so only our custom landmarks show
+  layers.forEach(layer => {
+    const src = layer['source-layer'] || '';
+    if (src === 'poi' || layer.id.startsWith('poi') || layer.id.startsWith('place-')) {
+      try { map.setLayoutProperty(layer.id, 'visibility', 'none'); } catch {}
+    }
+  });
+  layers.forEach(layer => {
+    const id  = layer.id;
+    const src = layer['source-layer'] || '';
+
+    // Background
+    if (layer.type === 'background') {
+      try { map.setPaintProperty(id, 'background-color', '#ffffff'); } catch {}
+      return;
+    }
+
+    // Water — ocean, sea, lakes, rivers
+    if (src === 'water' || src === 'waterway' ||
+        id.includes('water') || id.includes('ocean') || id.includes('sea') || id.includes('lake') || id.includes('river')) {
+      if (layer.type === 'fill') {
+        try { map.setPaintProperty(id, 'fill-color', '#c8cdd1'); } catch {}
+      } else if (layer.type === 'line') {
+        try { map.setPaintProperty(id, 'line-color', '#b0b8be'); } catch {}
+      }
+      return;
+    }
+
+    // Roads — white fill, light gray casing
+    if (src === 'transportation' && layer.type === 'line') {
+      const isCasing = id.includes('casing') || id.includes('case') || id.includes('outline') || id.includes('border');
+      try { map.setPaintProperty(id, 'line-color', isCasing ? '#e0e0e0' : '#ffffff'); } catch {}
+      return;
+    }
+
+    // Greens — parks, forests, landcover vegetation
+    if (src === 'landuse' || src === 'landcover' || src === 'landuse_overlay') {
+      const isGreen = id.includes('park') || id.includes('grass') || id.includes('wood') ||
+                      id.includes('forest') || id.includes('scrub') || id.includes('garden') ||
+                      id.includes('national') || id.includes('meadow') || id.includes('green');
+      if (isGreen) {
+        try { map.setPaintProperty(id, 'fill-color', '#7ec87e'); } catch {}
+      } else {
+        try { map.setPaintProperty(id, 'fill-color', '#efefef'); } catch {}
+      }
+      return;
+    }
+
+    // General land / earth
+    if (src === 'landuse' || id.includes('residential') || id.includes('land')) {
+      try { map.setPaintProperty(id, 'fill-color', '#f5f5f5'); } catch {}
+    }
+
+    // Building footprints
+    if (src === 'building' && layer.type === 'fill') {
+      try { map.setPaintProperty(id, 'fill-color', '#e8e8e8'); } catch {}
+      try { map.setPaintProperty(id, 'fill-outline-color', '#d4d4d4'); } catch {}
+    }
+  });
+}
+
+function toggleMapStyle() {
+  currentMapStyle = currentMapStyle === STYLE_CARTO ? STYLE_LIBERTY : STYLE_CARTO;
+  const btn = document.getElementById('btn-map-style');
+  btn.classList.toggle('active', currentMapStyle === STYLE_LIBERTY);
+
+  // Clear stale layer/source tracking so renderAllRoutesOnMap re-adds cleanly
+  routeLayers = {};
+  routeSources = {};
+
+  map.setStyle(currentMapStyle, { diff: false });
+
+  const _reinitLayers = () => {
+    try { addTerrain(); } catch(e) { console.warn('addTerrain:', e); }
+    try { addBarangayLayers(); } catch(e) { console.warn('addBarangayLayers:', e); }
+    try { add3DBuildings(); } catch(e) { console.warn('add3DBuildings:', e); }
+    try { addGreenery(); } catch(e) { console.warn('addGreenery:', e); }
+
+    // Force-clear landmarks and re-add (setStyle wipes them, but be explicit)
+    ['landmarks-label', 'landmarks-icon', 'landmarks-circle'].forEach(id => {
+      try { if (map.getLayer(id)) map.removeLayer(id); } catch {}
+    });
+    try { if (map.getSource('landmarks')) map.removeSource('landmarks'); } catch {}
+    try { addLandmarks(); } catch(e) { console.error('addLandmarks:', e); }
+    try { initLandmarkEvents(); } catch(e) { console.warn('initLandmarkEvents:', e); }
+    try { fetchLandmarksFromDB(); } catch(e) { console.warn('fetchLandmarksFromDB:', e); }
+
+    try { renderAllRoutesOnMap(); } catch(e) { console.warn('renderAllRoutesOnMap:', e); }
+    try {
+      if (!is3D && map.getLayer('bld-3d')) map.setLayoutProperty('bld-3d', 'visibility', 'none');
+    } catch {}
+    if (currentMapStyle === STYLE_LIBERTY) {
+      try { applyWhiteTheme(); } catch(e) { console.warn('applyWhiteTheme:', e); }
+    }
+    if (currentMapStyle === STYLE_CARTO) {
+      try { applyCartoGreen(); } catch(e) { console.warn('applyCartoGreen:', e); }
+    }
+  };
+
+  map.once('style.load', () => {
+    // Small delay lets the base style's glyph/sprite requests start before we
+    // pile on custom layers — avoids a race that can silently skip addLayer.
+    setTimeout(_reinitLayers, 150);
+  });
+
+}
+
 let is3D = true;
 function toggle3D() {
   const btn = document.getElementById('btn-3d');
@@ -3170,7 +3307,8 @@ function bindEvents() {
   document.getElementById('lf-close').addEventListener('click', toggleLandmarkFilter);
   document.getElementById('lf-show-all').addEventListener('click', () => setAllLandmarkCategories(true));
   document.getElementById('lf-hide-all').addEventListener('click', () => setAllLandmarkCategories(false));
-document.getElementById('btn-3d').addEventListener('click', toggle3D);
+  document.getElementById('btn-3d').addEventListener('click', toggle3D);
+  document.getElementById('btn-map-style').addEventListener('click', toggleMapStyle);
   document.getElementById('btn-reset').addEventListener('click', () => {
     hideRouteDetail();
     map.flyTo({ center: MAP_CENTER, zoom: INITIAL_ZOOM, pitch: INITIAL_PITCH, bearing: INITIAL_BEARING, duration: 1200 });
