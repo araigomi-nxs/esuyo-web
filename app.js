@@ -3010,6 +3010,9 @@ function toggleMapStyle() {
     try {
       if (!is3D && map.getLayer('bld-3d')) map.setLayoutProperty('bld-3d', 'visibility', 'none');
     } catch {}
+    try {
+      if (!_shaderOn && map.getLayer('terrain-hillshade')) map.setLayoutProperty('terrain-hillshade', 'visibility', 'none');
+    } catch {}
     if (currentMapStyle === STYLE_LIBERTY) {
       try { applyWhiteTheme(); } catch(e) { console.warn('applyWhiteTheme:', e); }
     }
@@ -3034,6 +3037,14 @@ function toggle3D() {
   btn.classList.toggle('active', is3D);
   const vis = is3D ? 'visible' : 'none';
   if (map.getLayer('bld-3d')) map.setLayoutProperty('bld-3d', 'visibility', vis);
+}
+
+let _shaderOn = true;
+function toggleShader() {
+  _shaderOn = !_shaderOn;
+  document.getElementById('btn-shader').classList.toggle('active', _shaderOn);
+  const vis = _shaderOn ? 'visible' : 'none';
+  try { map.setLayoutProperty('terrain-hillshade', 'visibility', vis); } catch {}
 }
 
 // ── Ride Mode ─────────────────────────────────────
@@ -3434,6 +3445,7 @@ function bindEvents() {
   document.getElementById('lf-show-all').addEventListener('click', () => setAllLandmarkCategories(true));
   document.getElementById('lf-hide-all').addEventListener('click', () => setAllLandmarkCategories(false));
   document.getElementById('btn-3d').addEventListener('click', toggle3D);
+  document.getElementById('btn-shader').addEventListener('click', toggleShader);
   document.getElementById('btn-map-style').addEventListener('click', toggleMapStyle);
   document.getElementById('btn-reset').addEventListener('click', () => {
     hideRouteDetail();
@@ -3672,13 +3684,11 @@ async function savePlaceToMap() {
 
   btn.disabled = true;
   btn.textContent = 'Saving…';
-  const ok = isAdmin()
-    ? await saveLandmarkToDB({ ...previewPlace, name, category })
-    : saveLocalPin({ ...previewPlace, name, category });
+  const ok = await saveLandmarkToDB({ ...previewPlace, name, category });
   btn.disabled = false;
 
   if (ok) {
-    btn.textContent = isAdmin() ? '✓ Saved' : '✓ Added';
+    btn.textContent = '✓ Saved';
     setTimeout(() => { btn.textContent = 'Save to Map'; }, 2000);
     if (previewMarker) { previewMarker.remove(); previewMarker = null; }
     previewPlace = null;
