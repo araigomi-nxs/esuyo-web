@@ -132,6 +132,7 @@ let filterTown = '';
 let filterBarangay = '';
 let _areaIndex = {};
 let builderOpen = false;
+let _dropPinMode = false;
 let editingRouteId = null;
 let isSnapping = false; // still used to block map clicks during async stop placement
 let activePopup = null;
@@ -301,7 +302,7 @@ function initMap() {
     center: MAP_CENTER, zoom: INITIAL_ZOOM,
     pitch: INITIAL_PITCH, bearing: INITIAL_BEARING,
     minPitch: INITIAL_PITCH, maxPitch: INITIAL_PITCH,
-    maxZoom: 18, minZoom: 8, antialias: true,
+    maxZoom: 18, minZoom: 10, antialias: true,
     renderWorldCopies: false,
     // Lock camera to the Philippines boundaries only
     // Prevents users from panning outside PH and restricts tile loading
@@ -333,16 +334,29 @@ function initMap() {
     map.on('click', (e) => {
       if (builderOpen) return;
       if (rideModeActive) return;
+      if (_dropPinMode) {
+        _dropPinMode = false;
+        map.getCanvas().style.cursor = '';
+        const { lat, lng } = e.lngLat;
+        previewPlace = { name: '', lat, lng, address: 'Custom pin', google_place_id: null };
+        showPlacePreview(previewPlace, true);
+        document.getElementById('ps-name').value = '';
+        document.getElementById('ps-name').focus();
+        return;
+      }
       const routeLayerIds = routes.flatMap(r => [`line-${r.id}`, `glow-${r.id}`]).filter(id => {
         try { return !!map.getLayer(id); } catch { return false; }
       });
-      const popupLayerIds = [...routeLayerIds, 'landmarks-circle', 'stops-src'].filter(id => {
+      const popupLayerIds = [...routeLayerIds, 'landmarks-circle', 'stops-src', 'brgy-fill'].filter(id => {
         try { return !!map.getLayer(id); } catch { return false; }
       });
       const routeFeatures = routeLayerIds.length ? map.queryRenderedFeatures(e.point, { layers: routeLayerIds }) : [];
       const popupFeatures = popupLayerIds.length ? map.queryRenderedFeatures(e.point, { layers: popupLayerIds }) : [];
       if (routeFeatures.length === 0 && activeRouteId) hideRouteDetail();
       if (popupFeatures.length === 0 && activePopup) { activePopup.remove(); activePopup = null; }
+      const brgyFeatures = barangaysVisible && map.getLayer('brgy-fill')
+        ? map.queryRenderedFeatures(e.point, { layers: ['brgy-fill'] }) : [];
+      if (brgyFeatures.length === 0 && _selectedBarangay) clearBarangaySelection();
     });
   });
 
@@ -645,6 +659,13 @@ async function saveLandmarkToDB(landmark) {
 }
 
 
+function saveLocalPin(landmark) {
+  _customPins.push({ ...landmark, id: null, _local: true, category: landmark.category || 'landmark' });
+  refreshLandmarksLayer();
+  renderBrandMarkers();
+  return true;
+}
+
 async function deleteLandmarkFromDB(id) {
   if (!_supabase) return;
   await _supabase.from('landmarks').delete().eq('id', id);
@@ -653,8 +674,10 @@ async function deleteLandmarkFromDB(id) {
   refreshLandmarksLayer();
 }
 
+let _customPins = [];
+
 function getAllLandmarks() {
-  return dbLandmarks;
+  return [...dbLandmarks, ..._customPins];
 }
 
 
@@ -818,10 +841,44 @@ window.cancelReposition = cancelReposition;
 // ── Barangay Boundaries ───────────────────────────
 let barangaysVisible = false;
 let _brgyGlowFrame = null;
+let _selectedBarangay = null;
+let _brgyPopup = null;
+
+function _polygonCentroid(geometry) {
+  const ring = geometry.type === 'Polygon'
+    ? geometry.coordinates[0]
+    : geometry.coordinates[0][0]; // first ring of first polygon
+  let x = 0, y = 0;
+  for (const [lng, lat] of ring) { x += lng; y += lat; }
+  return [x / ring.length, y / ring.length];
+}
 
 function addBarangayLayers() {
   if (!legazpiBarangays || map.getSource('barangays')) return;
   map.addSource('barangays', { type: 'geojson', data: legazpiBarangays });
+
+  // Subtle fill for all barangays (clickable hit area)
+  map.addLayer({
+    id: 'brgy-fill', type: 'fill', source: 'barangays',
+    layout: { visibility: 'none' },
+    paint: { 'fill-color': '#00E5FF', 'fill-opacity': 0.06 }
+  });
+
+  // Highlighted fill for selected barangay
+  map.addLayer({
+    id: 'brgy-fill-selected', type: 'fill', source: 'barangays',
+    filter: ['==', ['get', 'name'], ''],
+    layout: { visibility: 'none' },
+    paint: { 'fill-color': '#00E5FF', 'fill-opacity': 0.38 }
+  });
+
+  // Bright crisp border for selected barangay only
+  map.addLayer({
+    id: 'brgy-line-selected', type: 'line', source: 'barangays',
+    filter: ['==', ['get', 'name'], ''],
+    layout: { visibility: 'none', 'line-join': 'round' },
+    paint: { 'line-color': '#00E5FF', 'line-width': 3, 'line-opacity': 1 }
+  });
 
   // Outer glow — wide, heavily blurred, pulsed by animation
   map.addLayer({
@@ -859,29 +916,77 @@ function addBarangayLayers() {
     },
     paint: { 'text-color': '#80FFFF', 'text-halo-color': 'rgba(0,10,30,0.85)', 'text-halo-width': 2 }
   });
+
+  // Click to select barangay
+  map.on('click', 'brgy-fill', (e) => {
+    if (!barangaysVisible) return;
+    const feat = e.features[0];
+    selectBarangay(feat.properties.name, feat.properties.city, feat.geometry);
+  });
+
+  map.on('mouseenter', 'brgy-fill', () => {
+    if (barangaysVisible) map.getCanvas().style.cursor = 'pointer';
+  });
+  map.on('mouseleave', 'brgy-fill', () => {
+    map.getCanvas().style.cursor = '';
+  });
+}
+
+function selectBarangay(name, city, geometry) {
+  _selectedBarangay = name;
+  try { map.setFilter('brgy-fill-selected', ['==', ['get', 'name'], name]); } catch {}
+  try { map.setFilter('brgy-line-selected', ['==', ['get', 'name'], name]); } catch {}
+  if (_brgyPopup) { _brgyPopup.remove(); _brgyPopup = null; }
+  const center = _polygonCentroid(geometry);
+  _brgyPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: true, offset: 0 })
+    .setLngLat(center)
+    .setHTML(`<div class="brgy-popup">
+      <div class="brgy-card-header">
+        <div class="brgy-card-badge">Barangay</div>
+        <button class="brgy-card-close" onclick="clearBarangaySelection()">✕</button>
+      </div>
+      <div class="brgy-card-name">${escHtml(name)}</div>
+      <div class="brgy-card-city">${escHtml(city || 'Legazpi City')}</div>
+    </div>`)
+    .addTo(map);
+  _brgyPopup.on('close', () => {
+    _brgyPopup = null;
+    _selectedBarangay = null;
+    try { map.setFilter('brgy-fill-selected', ['==', ['get', 'name'], '']); } catch {}
+    try { map.setFilter('brgy-line-selected', ['==', ['get', 'name'], '']); } catch {}
+  });
+}
+
+function clearBarangaySelection() {
+  _selectedBarangay = null;
+  try { map.setFilter('brgy-fill-selected', ['==', ['get', 'name'], '']); } catch {}
+  try { map.setFilter('brgy-line-selected', ['==', ['get', 'name'], '']); } catch {}
+  if (_brgyPopup) { _brgyPopup.remove(); _brgyPopup = null; }
 }
 
 function toggleBarangays() {
   barangaysVisible = !barangaysVisible;
   const vis = barangaysVisible ? 'visible' : 'none';
-  ['brgy-glow-outer', 'brgy-glow-inner', 'brgy-line', 'brgy-label'].forEach(id => {
+  ['brgy-fill', 'brgy-fill-selected', 'brgy-line-selected', 'brgy-glow-outer', 'brgy-glow-inner', 'brgy-line', 'brgy-label'].forEach(id => {
     try { map.setLayoutProperty(id, 'visibility', vis); } catch {}
   });
   document.getElementById('btn-barangays').classList.toggle('active', barangaysVisible);
 
-  if (barangaysVisible) {
-    let _brgyTick = 0;
-    _brgyGlowFrame = requestAnimationFrame(function tick(ts) {
-      if (ts - _brgyTick > 50) { // ~20fps — setPaintProperty is expensive per-frame
-        _brgyTick = ts;
-        const op = 0.14 + 0.10 * Math.sin(ts / 1100);
-        try { if (map.getLayer('brgy-glow-outer')) map.setPaintProperty('brgy-glow-outer', 'line-opacity', op); } catch {}
-      }
-      _brgyGlowFrame = requestAnimationFrame(tick);
-    });
-  } else {
+  if (!barangaysVisible) {
+    clearBarangaySelection();
     if (_brgyGlowFrame) { cancelAnimationFrame(_brgyGlowFrame); _brgyGlowFrame = null; }
+    return;
   }
+
+  let _brgyTick = 0;
+  _brgyGlowFrame = requestAnimationFrame(function tick(ts) {
+    if (ts - _brgyTick > 50) {
+      _brgyTick = ts;
+      const op = 0.14 + 0.10 * Math.sin(ts / 1100);
+      try { if (map.getLayer('brgy-glow-outer')) map.setPaintProperty('brgy-glow-outer', 'line-opacity', op); } catch {}
+    }
+    _brgyGlowFrame = requestAnimationFrame(tick);
+  });
 }
 
 // ── Edit Landmark Style ───────────────────────────
@@ -930,13 +1035,13 @@ window.deleteLandmark = (id, name) => {
 };
 
 const LANDMARK_COLORS = {
-  mall: '#E91E63', hospital: '#F44336', school: '#2196F3', church: '#9C27B0',
-  gov: '#607D8B', terminal: '#FF9800', airport: '#00BCD4', port: '#795548',
-  bank: '#4CAF50', market: '#FF5722', park: '#8BC34A', landmark: '#673AB7',
+  mall: '#E91E63', hospital: '#F44336', school: '#42A5F5', church: '#BA68C8',
+  gov: '#90A4AE', terminal: '#FF9800', airport: '#00BCD4', port: '#A1887F',
+  bank: '#66BB6A', market: '#FF7043', park: '#8BC34A', landmark: '#9575CD',
   '711': '#00703c', '7eleven': '#00703c',
-  factory: '#546E7A', gasstation: '#F57F17',
-  fastfood: '#E65100', restaurant: '#6D4C41',
-  cafe: '#795548', accommodation: '#0288D1', viewpoint: '#F06292'
+  factory: '#78909C', gasstation: '#FFC107',
+  fastfood: '#FF7043', restaurant: '#FF9800',
+  cafe: '#FF8F00', accommodation: '#0288D1', viewpoint: '#F06292'
 };
 
 const LANDMARK_ICONS = {
@@ -1140,7 +1245,8 @@ function renderBrandMarkers() {
     if (!brand) return;
     if (hiddenLandmarkCategories.has(l.category || 'fastfood')) return;
     const el = makeBrandMarkerEl(l, brand);
-    el.addEventListener('click', () => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
       const pinIcon = brand === 'jollibee' ? '🐝' : '🍔';
       const category = l.category || 'fastfood';
       const dbBtns = l.id && isAdmin() ? `
@@ -1201,22 +1307,25 @@ function addLandmarks() {
         'circle-color': ['match', ['get', 'category'],
           'mall', '#E91E63',
           'hospital', '#F44336',
-          'school', '#2196F3',
-          'church', '#9C27B0',
-          'gov', '#607D8B',
+          'school', '#42A5F5',
+          'church', '#BA68C8',
+          'gov', '#90A4AE',
           'terminal', '#FF9800',
           'airport', '#00BCD4',
-          'port', '#795548',
+          'port', '#A1887F',
           'park', '#8BC34A',
-          'bank', '#4CAF50',
-          'market', '#FF5722',
-          'landmark', '#673AB7',
+          'bank', '#66BB6A',
+          'market', '#FF7043',
+          'landmark', '#9575CD',
           '7eleven', '#00703c',
           '711', '#00703c',
-          'factory', '#546E7A',
-          'gasstation', '#F57F17',
-          'fastfood', '#E65100',
-          'restaurant', '#6D4C41',
+          'factory', '#78909C',
+          'gasstation', '#FFC107',
+          'fastfood', '#FF7043',
+          'restaurant', '#FF9800',
+          'cafe', '#FF8F00',
+          'accommodation', '#0288D1',
+          'viewpoint', '#F06292',
           '#888'
         ],
         'circle-stroke-width': 2,
@@ -2776,6 +2885,19 @@ const STYLE_CARTO   = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.
 const STYLE_LIBERTY = 'https://tiles.openfreemap.org/styles/liberty';
 let currentMapStyle = STYLE_CARTO;
 
+function hideNonRoadLabels() {
+  // Prefix pattern for our custom layers — never touch these
+  const OUR_LAYERS = /^(landmarks|brgy|green-cover|landuse-cover|hillshade|sky-layer|line-|glow-|arrows-|reverse-arrows-|terminal-|stops-|draft-)/;
+  map.getStyle().layers.forEach(layer => {
+    if (layer.type !== 'symbol') return;
+    if (OUR_LAYERS.test(layer.id)) return;
+    const srcLayer = layer['source-layer'] || '';
+    // Keep only road/street name labels (transportation_name source layer in OpenMapTiles-based styles)
+    if (srcLayer === 'transportation_name' || layer.id.includes('road') || layer.id.includes('street') || layer.id.includes('highway')) return;
+    try { map.setLayoutProperty(layer.id, 'visibility', 'none'); } catch {}
+  });
+}
+
 function applyCartoGreen() {
   map.getStyle().layers.forEach(layer => {
     if (layer.type !== 'fill') return;
@@ -2790,6 +2912,7 @@ function applyCartoGreen() {
       try { map.setPaintProperty(id, 'fill-opacity', 0.5); } catch {}
     }
   });
+  hideNonRoadLabels();
 }
 
 function applyWhiteTheme() {
@@ -2805,9 +2928,9 @@ function applyWhiteTheme() {
     const id  = layer.id;
     const src = layer['source-layer'] || '';
 
-    // Background
+    // Background / ground — match CARTO Positron
     if (layer.type === 'background') {
-      try { map.setPaintProperty(id, 'background-color', '#ffffff'); } catch {}
+      try { map.setPaintProperty(id, 'background-color', '#f9f9f8'); } catch {}
       return;
     }
 
@@ -2822,10 +2945,10 @@ function applyWhiteTheme() {
       return;
     }
 
-    // Roads — white fill, light gray casing
+    // Roads — white surface, visible gray casing for depth
     if (src === 'transportation' && layer.type === 'line') {
       const isCasing = id.includes('casing') || id.includes('case') || id.includes('outline') || id.includes('border');
-      try { map.setPaintProperty(id, 'line-color', isCasing ? '#e0e0e0' : '#ffffff'); } catch {}
+      try { map.setPaintProperty(id, 'line-color', isCasing ? '#b8b8b8' : '#ffffff'); } catch {}
       return;
     }
 
@@ -2837,22 +2960,24 @@ function applyWhiteTheme() {
       if (isGreen) {
         try { map.setPaintProperty(id, 'fill-color', '#7ec87e'); } catch {}
       } else {
-        try { map.setPaintProperty(id, 'fill-color', '#efefef'); } catch {}
+        try { map.setPaintProperty(id, 'fill-color', '#f9f9f8'); } catch {}
       }
       return;
     }
 
-    // General land / earth
+    // General land / earth — match ground color
     if (src === 'landuse' || id.includes('residential') || id.includes('land')) {
-      try { map.setPaintProperty(id, 'fill-color', '#f5f5f5'); } catch {}
+      try { map.setPaintProperty(id, 'fill-color', '#f9f9f8'); } catch {}
     }
 
-    // Building footprints
+    // Building footprints — match CARTO Positron (sides #dfdfdf, tops #ededed)
     if (src === 'building' && layer.type === 'fill') {
-      try { map.setPaintProperty(id, 'fill-color', '#e8e8e8'); } catch {}
-      try { map.setPaintProperty(id, 'fill-outline-color', '#d4d4d4'); } catch {}
+      const isTop = id.includes('top') || id.includes('roof');
+      try { map.setPaintProperty(id, 'fill-color', isTop ? '#ededed' : '#dfdfdf'); } catch {}
+      try { map.setPaintProperty(id, 'fill-outline-color', '#cccccc'); } catch {}
     }
   });
+  hideNonRoadLabels();
 }
 
 function toggleMapStyle() {
@@ -3274,6 +3399,7 @@ function bindEvents() {
   document.getElementById('rp-bar-save').addEventListener('click', saveReposition);
   document.getElementById('rp-bar-cancel').addEventListener('click', cancelReposition);
   document.getElementById('btn-add-place').addEventListener('click', openPlaceSearch);
+  document.getElementById('ps-mode-drop').addEventListener('click', () => _setSearchMode('drop'));
   document.getElementById('ps-close').addEventListener('click', closePlaceSearch);
   document.getElementById('ps-search-btn').addEventListener('click', runPlaceSearch);
   document.getElementById('ps-input').addEventListener('keydown', e => { if (e.key === 'Enter') runPlaceSearch(); });
@@ -3337,27 +3463,43 @@ let _searchMode = 'google'; // 'google' | 'osm'
 
 function openPlaceSearch() {
   if (_searchMode === 'google' && !window.googlePlacesReady) {
-    // Fall back to OSM silently if Google isn't ready
     _setSearchMode('osm');
   }
   document.getElementById('place-search-panel').classList.add('open');
-  setTimeout(() => document.getElementById('ps-input').focus(), 150);
+  if (_searchMode !== 'drop') setTimeout(() => document.getElementById('ps-input').focus(), 150);
 }
 
 function _setSearchMode(mode) {
   _searchMode = mode;
   document.getElementById('ps-mode-google').classList.toggle('active', mode === 'google');
   document.getElementById('ps-mode-osm').classList.toggle('active', mode === 'osm');
+  document.getElementById('ps-mode-drop').classList.toggle('active', mode === 'drop');
+  const isSearch = mode !== 'drop';
+  document.getElementById('ps-search-wrap').style.display = isSearch ? '' : 'none';
   const input = document.getElementById('ps-input');
-  input.placeholder = mode === 'osm'
-    ? 'e.g. Legazpi City Hall (OSM)'
-    : 'e.g. Legazpi City Hall';
+  input.placeholder = mode === 'osm' ? 'e.g. Legazpi City Hall (OSM)' : 'e.g. Legazpi City Hall';
+  document.getElementById('ps-hint').textContent = isSearch
+    ? 'Type a place name and press Search. Pick a result to preview it, then save it to your database.'
+    : 'Tap anywhere on the map to place your pin.';
+  document.getElementById('ps-hint').classList.remove('hidden');
+  if (_dropPinMode && isSearch) {
+    _dropPinMode = false;
+    map.getCanvas().style.cursor = '';
+  }
+  if (!isSearch) {
+    _dropPinMode = true;
+    map.getCanvas().style.cursor = 'crosshair';
+  }
   discardPlacePreview();
 }
 
 function closePlaceSearch() {
   document.getElementById('place-search-panel').classList.remove('open');
   discardPlacePreview();
+  if (_dropPinMode) {
+    _dropPinMode = false;
+    map.getCanvas().style.cursor = '';
+  }
 }
 
 function discardPlacePreview() {
@@ -3501,7 +3643,7 @@ function _syncCategoryStyle() {
   if (!iconEl.dataset.userSet)  iconEl.value  = LANDMARK_ICONS[cat]  || '';
 }
 
-function showPlacePreview(place) {
+function showPlacePreview(place, noFly = false) {
   if (previewMarker) previewMarker.remove();
   previewMarker = new maplibregl.Marker({ color: '#FF6B35', draggable: true })
     .setLngLat([place.lng, place.lat])
@@ -3512,7 +3654,7 @@ function showPlacePreview(place) {
     previewPlace.lng = lng;
     document.getElementById('ps-coords').textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
   });
-  map.flyTo({ center: [place.lng, place.lat], zoom: 16, pitch: 0, duration: 900 });
+  if (!noFly) map.flyTo({ center: [place.lng, place.lat], zoom: 16, pitch: 0, duration: 900 });
 
   document.getElementById('ps-name').value = place.name;
   document.getElementById('ps-address').textContent = place.address;
@@ -3530,11 +3672,13 @@ async function savePlaceToMap() {
 
   btn.disabled = true;
   btn.textContent = 'Saving…';
-  const ok = await saveLandmarkToDB({ ...previewPlace, name, category });
+  const ok = isAdmin()
+    ? await saveLandmarkToDB({ ...previewPlace, name, category })
+    : saveLocalPin({ ...previewPlace, name, category });
   btn.disabled = false;
 
   if (ok) {
-    btn.textContent = '✓ Saved';
+    btn.textContent = isAdmin() ? '✓ Saved' : '✓ Added';
     setTimeout(() => { btn.textContent = 'Save to Map'; }, 2000);
     if (previewMarker) { previewMarker.remove(); previewMarker = null; }
     previewPlace = null;

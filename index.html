@@ -60,7 +60,7 @@
         </div>
         <div class="fare-matrix-tooltip" id="fare-matrix-tooltip"></div>
       </div>
-      <button class="header-btn admin-only" id="btn-refresh-pins" title="Reload landmarks from database">↻ Refresh Pins</button>
+      <button class="header-btn" id="btn-refresh-pins" title="Reload landmarks from database">↻ Refresh Pins</button>
       <button class="header-btn admin-only" id="btn-sync-db" title="Save all routes to database">☁ Sync to DB</button>
       <button class="header-btn admin-only" id="btn-export" title="Export routes as JSON">⬇ Export</button>
     </div>
@@ -220,7 +220,7 @@
       <span class="add-place-plus">+</span>
     </button>
     <button class="map-control-btn" id="btn-barangays" title="Show Barangay Boundaries">
-      <span>🗺️</span><span class="label">Barangays</span>
+      <span>🗺️</span><span class="label">Border</span>
     </button>
     <div class="lm-split-btn">
       <button class="map-control-btn lm-main" id="btn-landmarks" title="Show/Hide Landmarks">
@@ -253,9 +253,10 @@
     <div class="ps-mode-toggle">
       <button class="ps-mode-btn active" id="ps-mode-google" title="Search using Google Places">Google</button>
       <button class="ps-mode-btn" id="ps-mode-osm" title="Search using OpenStreetMap data">OSM</button>
+      <button class="ps-mode-btn" id="ps-mode-drop" title="Click anywhere on the map to place a pin">📌 Drop</button>
     </div>
     <div class="ps-body">
-      <div class="ps-search-wrap">
+      <div class="ps-search-wrap" id="ps-search-wrap">
         <input type="text" id="ps-input" placeholder="e.g. Legazpi City Hall" autocomplete="off" spellcheck="false">
         <button class="ps-search-btn" id="ps-search-btn">Search</button>
       </div>
@@ -460,7 +461,7 @@
     </div>
   </div>
 
-  <!-- Delete Modal -->
+<!-- Delete Modal -->
   <div id="modal-overlay" class="hidden">
     <div class="modal">
       <h3 id="modal-title">Delete Route?</h3>

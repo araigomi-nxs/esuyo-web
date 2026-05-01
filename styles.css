@@ -215,6 +215,55 @@ body.viewer-mode #role-badge {
 }
 .header-btn:hover { background: var(--primary); transform: translateY(-1px); }
 
+/* ── Barangay Info Card ──────────────────────── */
+#brgy-info-card {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 120;
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(14px);
+  border-radius: var(--radius);
+  padding: 14px 18px 16px;
+  min-width: 210px;
+  box-shadow: 0 8px 32px rgba(0,70,199,0.14), 0 0 0 1px rgba(0,229,255,0.25);
+  animation: brgyCardIn 0.22s cubic-bezier(0.2,0,0,1);
+}
+#brgy-info-card.hidden { display: none; }
+@keyframes brgyCardIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.brgy-card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.brgy-card-badge {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: #00a0bb;
+  background: rgba(0,229,255,0.12);
+  padding: 2px 8px; border-radius: 99px;
+}
+.brgy-card-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--on-surface-variant); font-size: 13px;
+  padding: 2px 5px; border-radius: 6px; line-height: 1;
+}
+.brgy-card-close:hover { background: var(--surface-low); }
+.brgy-card-name {
+  font-family: 'Lexend', sans-serif;
+  font-size: 20px; font-weight: 700;
+  color: var(--on-surface); line-height: 1.2;
+}
+.brgy-card-city {
+  font-size: 13px; color: var(--on-surface-variant); margin-top: 4px;
+}
+.brgy-popup {
+  padding: 10px 14px 12px;
+  min-width: 160px;
+}
+
 /* ── Map ─────────────────────────────────────── */
 #map { position: fixed; inset: 0; z-index: 1; }
 .maplibregl-ctrl-bottom-left,
