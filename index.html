@@ -65,8 +65,8 @@
       </div>
       <div class="fare-era-wrap">
         <div class="fare-era-toggle" id="fare-era-toggle" title="Toggle fare rates period">
-          <button class="fare-era-btn active" data-era="post2026">2026 Rates</button>
-          <button class="fare-era-btn" data-era="pre2026">Pre-2026</button>
+          <button class="fare-era-btn" data-era="premarch26">Pre-March 26</button>
+          <button class="fare-era-btn active" data-era="march2026">March 2026</button>
         </div>
         <div class="fare-matrix-tooltip" id="fare-matrix-tooltip"></div>
       </div>
@@ -98,6 +98,14 @@
           <option value="">All Barangays</option>
         </select>
         <button class="af-clear" id="af-clear" title="Clear filters" style="display:none">✕</button>
+      </div>
+      <div class="vehicle-filter" id="vehicle-filter">
+        <button class="vf-chip active" data-vt="">All</button>
+        <button class="vf-chip" data-vt="puj">🚐 PUJ</button>
+        <button class="vf-chip" data-vt="mpuj">🚌 MPUJ</button>
+        <button class="vf-chip" data-vt="pub-city">🚍 PUB City</button>
+        <button class="vf-chip" data-vt="pub-city-ac">🚍 PUBw/AC</button>
+        <button class="vf-chip" data-vt="uv-express">🚙 UV Express</button>
       </div>
     </div>
 
@@ -362,6 +370,11 @@
       <div class="ride-fare-stat">
         <div class="ride-fare-val" id="ride-dist-val">—</div>
         <div class="ride-fare-lbl">Distance</div>
+      </div>
+      <div class="ride-fare-divider"></div>
+      <div class="ride-fare-stat">
+        <div class="ride-fare-val" id="ride-time-val">—</div>
+        <div class="ride-fare-lbl">Est. Time</div>
       </div>
       <div class="ride-fare-divider"></div>
       <div class="ride-fare-stat">

@@ -64,27 +64,27 @@ const INITIAL_BEARING = -15;
 const OSRM = 'https://routing.openstreetmap.de/routed-car';
 
 // ── LTFRB Fare Matrix ─────────────────────────────
-// pre2026 = rates before March 2026 (Oct 2023 provisional)
-// post2026 = rates from March 2026 onwards
+// premarch26 = rates before March 2026 (Oct 2023 provisional)
+// march2026 = rates from March 2026 onwards
 const FARE_MATRIX = {
   'puj':         { label: 'PUJ',       fullLabel: 'Traditional Jeepney', emoji: '🚐',
-    pre2026:  { base: 13.00, baseKm: 4, perKm: 1.80 },
-    post2026: { base: 14.00, baseKm: 4, perKm: 2.00 } },
+    premarch26:  { base: 13.00, baseKm: 4, perKm: 1.80 },
+    march2026: { base: 14.00, baseKm: 4, perKm: 2.00 } },
   'mpuj':        { label: 'MPUJ',      fullLabel: 'Modern Jeepney',       emoji: '🚌',
-    pre2026:  { base: 15.00, baseKm: 4, perKm: 2.20 },
-    post2026: { base: 17.00, baseKm: 4, perKm: 2.30 } },
+    premarch26:  { base: 15.00, baseKm: 4, perKm: 2.20 },
+    march2026: { base: 17.00, baseKm: 4, perKm: 2.30 } },
   'pub-city':    { label: 'PUB City',  fullLabel: 'City Bus (Ordinary)',  emoji: '🚍',
-    pre2026:  { base: 13.00, baseKm: 5, perKm: 2.25 },
-    post2026: { base: 15.00, baseKm: 5, perKm: 2.49 } },
+    premarch26:  { base: 13.00, baseKm: 5, perKm: 2.25 },
+    march2026: { base: 15.00, baseKm: 5, perKm: 2.49 } },
   'pub-city-ac': { label: 'PUBw/AC',  fullLabel: 'City Bus (Aircon)',    emoji: '🚍',
-    pre2026:  { base: 15.00, baseKm: 5, perKm: 2.65 },
-    post2026: { base: 18.00, baseKm: 5, perKm: 2.98 } },
+    premarch26:  { base: 15.00, baseKm: 5, perKm: 2.65 },
+    march2026: { base: 18.00, baseKm: 5, perKm: 2.98 } },
   'uv-express':  { label: 'UV Express', fullLabel: 'UV Express',         emoji: '🚙',
-    pre2026:  { base: 25.00, baseKm: 5, perKm: 2.00 },
-    post2026: { base: 25.00, baseKm: 5, perKm: 2.00 } },
+    premarch26:  { base: 25.00, baseKm: 5, perKm: 2.00 },
+    march2026: { base: 25.00, baseKm: 5, perKm: 2.50 } },
 };
 
-let fareEra = 'post2026'; // toggled by header button
+let fareEra = 'march2026'; // toggled by header button
 
 function getFareRates(vehicleType) {
   return (FARE_MATRIX[vehicleType] || FARE_MATRIX['puj'])[fareEra];
@@ -111,8 +111,8 @@ function initFareMatrixTooltip() {
   const rows = Object.entries(FARE_MATRIX).map(([, v]) => `
     <tr>
       <td class="fmt-vehicle">${v.emoji} ${v.label}</td>
-      <td class="fmt-rate">₱${v.pre2026.base.toFixed(2)}<span class="fmt-km"> / ${v.pre2026.baseKm}km</span><span class="fmt-extra"> +₱${v.pre2026.perKm.toFixed(2)}/km</span></td>
-      <td class="fmt-rate">₱${v.post2026.base.toFixed(2)}<span class="fmt-km"> / ${v.post2026.baseKm}km</span><span class="fmt-extra"> +₱${v.post2026.perKm.toFixed(2)}/km</span></td>
+      <td class="fmt-rate">₱${v.premarch26.base.toFixed(2)}<span class="fmt-km"> / ${v.premarch26.baseKm}km</span><span class="fmt-extra"> +₱${v.premarch26.perKm.toFixed(2)}/km</span></td>
+      <td class="fmt-rate">₱${v.march2026.base.toFixed(2)}<span class="fmt-km"> / ${v.march2026.baseKm}km</span><span class="fmt-extra"> +₱${v.march2026.perKm.toFixed(2)}/km</span></td>
     </tr>`).join('');
   
   _fareMatrixCache = `
@@ -136,6 +136,7 @@ let routes = [];
 let activeRouteId = null;
 let filterTown = '';
 let filterBarangay = '';
+let filterVehicle = '';
 let _areaIndex = {};
 let builderOpen = false;
 let _dropPinMode = false;
@@ -296,7 +297,10 @@ function _initGooglePlaces() {
   _googlePlacesInitialized = true;
   
   const key = window.ESUYO_CONFIG?.GOOGLE_PLACES_API_KEY;
-  if (!key || key.startsWith('your-')) return;
+  if (!key || key.startsWith('your-')) {
+    document.getElementById('ps-mode-google')?.style.setProperty('display', 'none');
+    return;
+  }
   ((g)=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await(a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n));})({ key, v: 'weekly' });
   google.maps.importLibrary('places').then(() => { window.googlePlacesReady = true; });
 }
@@ -316,6 +320,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   initMap();
   initAreaFilter();
+  initVehicleFilter();
   bindEvents();
   initFareMatrixTooltip();
   initMobileSidebarCollapse(); // Collapse sidebar on mobile by default
@@ -394,7 +399,10 @@ function initMap() {
         document.getElementById('ps-name').focus();
         return;
       }
-      const routeLayerIds = routes.flatMap(r => [`line-${r.id}`, `glow-${r.id}`]).filter(id => {
+      const routeLayerIds = routes.flatMap(r => [
+        `line-${r.id}`, `glow-${r.id}`,
+        `stops-${r.id}`, `terminal-${r.id}`, `terminal-click-${r.id}`
+      ]).filter(id => {
         try { return !!map.getLayer(id); } catch { return false; }
       });
       const popupLayerIds = [...routeLayerIds, 'landmarks-circle', 'stops-src', 'brgy-fill'].filter(id => {
@@ -1812,10 +1820,21 @@ function addRouteToMap(route) {
     },
     paint: { 'icon-opacity': 1 }
   }, _bl);
+  
+  // Invisible circle layer on terminal for better click detection
+  const terminalClickId = `terminal-click-${route.id}`;
+  map.addLayer({ id: terminalClickId, type: 'circle', source: stopsSrcId,
+    filter: ['==', ['get', 'isStart'], true],
+    paint: {
+      'circle-radius': 14,
+      'circle-color': '#fff',
+      'circle-opacity': 0.001,
+      'circle-stroke-width': 0
+    }
+  }, _bl);
 
   const handleStopClick = (e) => {
     if (builderOpen) return;
-    e.preventDefault();
     const props = e.features[0]?.properties;
     const idx = props?.idx;
     const stop = route.stops[idx];
@@ -1825,15 +1844,18 @@ function addRouteToMap(route) {
     highlightStopItem(idx);
   };
   map.on('click', stopsId, handleStopClick);
+  map.on('click', terminalClickId, handleStopClick);
   map.on('click', terminalId, handleStopClick);
   map.on('mouseenter', stopsId, () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', stopsId, () => { if (!builderOpen) map.getCanvas().style.cursor = ''; });
+  map.on('mouseenter', terminalClickId, () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', terminalClickId, () => { if (!builderOpen) map.getCanvas().style.cursor = ''; });
   map.on('mouseenter', terminalId, () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', terminalId, () => { if (!builderOpen) map.getCanvas().style.cursor = ''; });
 
   map.on('click', lineId, async (e) => {
     if (builderOpen) return;
-    const onStop = map.queryRenderedFeatures(e.point, { layers: [stopsId, terminalId] });
+    const onStop = map.queryRenderedFeatures(e.point, { layers: [stopsId, terminalClickId, terminalId] });
     if (onStop.length > 0) return;
 
     // Detect all routes sharing this road segment
@@ -1890,7 +1912,7 @@ function addRouteToMap(route) {
   map.on('mouseenter', lineId, () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', lineId, () => { if (!builderOpen) map.getCanvas().style.cursor = ''; });
 
-  routeLayers[route.id] = [glowId, lineId, flowId, arrowsId, reverseArrowsId, stopsId, terminalId];
+  routeLayers[route.id] = [glowId, lineId, flowId, arrowsId, reverseArrowsId, stopsId, terminalId, terminalClickId];
   routeSources[route.id] = [srcId, stopsSrcId];
 }
 
@@ -1975,6 +1997,7 @@ function hideOtherRoutes(routeId) {
     try { map.setLayoutProperty(`arrows-${r.id}`, 'visibility', isActive ? 'visible' : 'none'); } catch {}
     try { map.setLayoutProperty(`reverse-arrows-${r.id}`, 'visibility', isActive ? 'visible' : 'none'); } catch {}
     try { map.setPaintProperty(`terminal-${r.id}`, 'icon-opacity', isActive ? 1 : 0.02); } catch {}
+    try { map.setPaintProperty(`terminal-click-${r.id}`, 'circle-opacity', isActive ? 0 : 0); } catch {}
     try { map.setPaintProperty(`flow-${r.id}`, 'line-opacity', isActive ? 0.5 : 0); } catch {}
   });
   _startRouteAnimation();
@@ -1991,6 +2014,7 @@ function showAllRoutes() {
     try { map.setLayoutProperty(`arrows-${r.id}`, 'visibility', 'visible'); } catch {}
     try { map.setLayoutProperty(`reverse-arrows-${r.id}`, 'visibility', 'visible'); } catch {}
     try { map.setPaintProperty(`terminal-${r.id}`, 'icon-opacity', 1); } catch {}
+    try { map.setPaintProperty(`terminal-click-${r.id}`, 'circle-opacity', 0); } catch {}
     try { map.setPaintProperty(`flow-${r.id}`, 'line-opacity', 0); } catch {}
   });
 }
@@ -2113,16 +2137,27 @@ function applyMapFilter(visibleIds) {
   });
 }
 
+function initVehicleFilter() {
+  document.getElementById('vehicle-filter').addEventListener('click', e => {
+    const chip = e.target.closest('.vf-chip');
+    if (!chip) return;
+    filterVehicle = chip.dataset.vt;
+    document.querySelectorAll('.vf-chip').forEach(c => c.classList.toggle('active', c === chip));
+    renderRouteList(document.getElementById('route-search').value);
+  });
+}
+
 function renderRouteList(filter = '') {
   const list = document.getElementById('route-list');
   const empty = document.getElementById('empty-state');
   const q = filter.toLowerCase();
   const filtered = routes.filter(r =>
     (!q || r.name.toLowerCase().includes(q) || r.stops.some(s => s.name.toLowerCase().includes(q))) &&
-    _routeMatchesArea(r)
+    _routeMatchesArea(r) &&
+    (!filterVehicle || (r.vehicle_type || 'puj') === filterVehicle)
   );
 
-  const isFiltered = q || filterTown || filterBarangay;
+  const isFiltered = q || filterTown || filterBarangay || filterVehicle;
   if (!activeRouteId) applyMapFilter(isFiltered ? new Set(filtered.map(r => r.id)) : null);
 
   list.innerHTML = '';
@@ -2236,7 +2271,7 @@ function showRouteDetail(routeId) {
   if (route.stops.length >= 2) {
     const bounds = new maplibregl.LngLatBounds();
     route.stops.forEach(s => bounds.extend([s.lng, s.lat]));
-    map.fitBounds(bounds, { padding: { top: 80, bottom: 80, left: 340, right: 400 }, duration: 1200, maxZoom: 15 });
+    map.fitBounds(bounds, { padding: { top: 80, bottom: 80, left: 340, right: 400 }, duration: 1200, maxZoom: 16, minZoom: 14 });
   }
 }
 
@@ -3173,11 +3208,19 @@ function _rideMarker(label, color) {
   return el;
 }
 
+function _fmtTravelTime(distKm) {
+  const mins = Math.round(distKm / 20 * 60);
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
 function _updateRideStep() {
   const msgs = [
     '📍 Tap your pickup point on the map',
     '🏁 Now tap your drop-off point',
-    '✓ Fare calculated'
+    '✓ Fare calculated · Drag A or B to adjust'
   ];
   document.getElementById('ride-step-indicator').textContent = msgs[_rideStep] || '';
 }
@@ -3204,7 +3247,7 @@ async function _placeRideMarker(lat, lng, type) {
 
   if (isPickup) {
     if (_ridePickupMarker) _ridePickupMarker.remove();
-    _ridePickupMarker = new maplibregl.Marker({ element: _rideMarker('A', '#22c55e'), anchor: 'bottom-left' })
+    _ridePickupMarker = new maplibregl.Marker({ element: _rideMarker('A', '#22c55e'), draggable: true, anchor: 'bottom-left' })
       .setLngLat([finalLng, finalLat]).addTo(map);
     _ridePickupCoords = { lat: finalLat, lng: finalLng, snapped, snapIdx };
     _setRideAddress('ride-pickup-addr', 'Locating…');
@@ -3214,6 +3257,24 @@ async function _placeRideMarker(lat, lng, type) {
         _rideRouteCoords = buildSavedRouteCoords(route);
         _rideStartIdx = snapIdx;
       }
+    }
+    if (activeRouteId && _rideRouteCoords.length) {
+      const r = routes.find(routeItem => routeItem.id === activeRouteId);
+      _ridePickupMarker.on('drag', () => {
+        if (!r || !_rideRouteCoords.length) return;
+        const ll = _ridePickupMarker.getLngLat();
+        const snap = findNearestOnRoute(r, ll.lat, ll.lng);
+        _ridePickupMarker.setLngLat([snap.lng, snap.lat]);
+        _ridePickupCoords = { lat: snap.lat, lng: snap.lng, snapped: true, snapIdx: snap.idx };
+        _rideStartIdx = snap.idx;
+        _setRideAddress('ride-pickup-addr', `Stop ${snap.idx + 1}`);
+        if (_rideDropoffCoords) _drawRidePathAlongRoute();
+      });
+      _ridePickupMarker.on('dragend', async () => {
+        const { lat, lng } = _ridePickupMarker.getLngLat();
+        const address = await getAddressFromCoords(lat, lng);
+        _setRideAddress('ride-pickup-addr', (address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`) + ' ✓');
+      });
     }
   } else {
     if (_rideDropoffMarker) _rideDropoffMarker.remove();
@@ -3264,7 +3325,8 @@ function _drawRidePathAlongRoute() {
   
   _lastRideDistKm = distKm;
   document.getElementById('ride-dist-val').textContent = `${distKm.toFixed(2)} km`;
-  
+  document.getElementById('ride-time-val').textContent = _fmtTravelTime(distKm);
+
   const hasDiscount = document.getElementById('ride-discount-cb')?.checked || false;
   const rideVt = routes.find(r => r.id === activeRouteId)?.vehicle_type || 'puj';
   const fare = calcFare(distKm, rideVt);
@@ -3336,8 +3398,9 @@ async function _computeRide() {
   }
 
   document.getElementById('ride-dist-val').textContent = `${distKm.toFixed(2)} km`;
+  document.getElementById('ride-time-val').textContent = _fmtTravelTime(distKm);
   _lastRideDistKm = distKm;
-  
+
   const discountCb = document.getElementById('ride-discount-cb');
   const hasDiscount = discountCb?.checked || false;
   const rideVt2 = routes.find(r => r.id === activeRouteId)?.vehicle_type || 'puj';
@@ -3410,6 +3473,9 @@ function resetRide() {
   _clearRideRoute();
   _setRideAddress('ride-pickup-addr',  '—');
   _setRideAddress('ride-dropoff-addr', '—');
+  document.getElementById('ride-dist-val').textContent = '—';
+  document.getElementById('ride-time-val').textContent = '—';
+  document.getElementById('ride-fare-val').textContent = '—';
   document.getElementById('ride-fare-card').classList.add('hidden');
   document.getElementById('ride-slider-container').classList.add('hidden');
   document.getElementById('ride-reset-btn').classList.add('hidden');
@@ -3557,7 +3623,7 @@ function initMobileSidebarCollapse() {
   const toggle = document.getElementById('sidebar-toggle');
   
   // Collapse sidebar on initial load if mobile
-  if (isMobileView()) {
+  if (DEVICE_CONFIG.isMobile()) {
     sb.classList.add('collapsed');
     toggle.classList.add('visible');
   } else {
@@ -3567,7 +3633,7 @@ function initMobileSidebarCollapse() {
   
   // Re-check on window resize
   window.addEventListener('resize', () => {
-    if (isMobileView()) {
+    if (DEVICE_CONFIG.isMobile()) {
       sb.classList.add('collapsed');
       toggle.classList.add('visible');
     } else {
@@ -3705,6 +3771,7 @@ let previewPlace = null;
 let _searchMode = 'google'; // 'google' | 'osm'
 
 function openPlaceSearch() {
+  _initGooglePlaces();
   if (_searchMode === 'google' && !window.googlePlacesReady) {
     _setSearchMode('osm');
   }
@@ -3761,6 +3828,7 @@ function discardPlacePreview() {
 // Fired by button click or Enter — dispatches to active search mode
 async function runPlaceSearch() {
   if (_searchMode === 'osm') { runOsmPlaceSearch(); return; }
+  if (_searchMode === 'google' && !window.googlePlacesReady) { _setSearchMode('osm'); runOsmPlaceSearch(); return; }
 
   const val = document.getElementById('ps-input').value.trim();
   if (!val) return;
