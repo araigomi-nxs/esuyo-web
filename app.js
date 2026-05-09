@@ -3143,6 +3143,10 @@ function startSimulation(routeId) {
   document.getElementById('sim-next-stop').textContent = route.stops[1]?.name || 'Stop 2';
   document.getElementById('sim-panel').classList.remove('hidden');
   document.getElementById('route-detail').classList.remove('visible'); // hide detail panel during sim
+  if (DEVICE_CONFIG.isMobile()) {
+    document.getElementById('sidebar').classList.add('collapsed');
+    document.getElementById('sidebar-toggle').classList.add('visible');
+  }
   hideOtherRoutes(routeId);
   map.flyTo({ center: simCoords[0], zoom: 15.5, duration: 800 });
   simAnimFrame = requestAnimationFrame(_simTick);
