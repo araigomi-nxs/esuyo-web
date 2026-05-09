@@ -3894,6 +3894,7 @@ function bindEvents() {
   document.getElementById('feedback-overlay').addEventListener('click', e => { if (e.target.id === 'feedback-overlay') closeFeedback(); });
   document.getElementById('feedback-submit').addEventListener('click', submitFeedback);
   document.getElementById('btn-feedback').addEventListener('click', openFeedback);
+  initFeedbackCharCounter();
   document.getElementById('qr-modal-close').addEventListener('click', closeQrModal);
   document.getElementById('qr-modal-overlay').addEventListener('click', e => { if (e.target.id === 'qr-modal-overlay') closeQrModal(); });
   document.getElementById('qr-btn-download').addEventListener('click', downloadQr);
