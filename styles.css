@@ -1942,6 +1942,19 @@ body.viewer-mode #role-badge {
 .feedback-submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .feedback-submit-btn.feedback-sent { background: #22c55e; }
 
+.feedback-disclaimer {
+  margin-top: 12px; padding: 10px 12px;
+  background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2);
+  border-radius: var(--radius-sm); font-size: 0.75rem;
+  color: var(--on-surface-variant); line-height: 1.5;
+}
+.feedback-disclaimer-icon { margin-right: 4px; }
+.feedback-disclaimer strong { color: var(--on-surface); }
+.feedback-form-link {
+  color: #60a5fa; text-decoration: none; font-weight: 600;
+}
+.feedback-form-link:hover { text-decoration: underline; }
+
 /* ── QR Code Button ──────────────────────────── */
 .btn-gen-qr {
   flex: 1; padding: 9px; border-radius: var(--radius-sm);
