@@ -2306,8 +2306,8 @@ function showQrModal(routeId) {
   container.innerHTML = '';
   new QRCode(container, {
     text: route.id,
-    width: 240,
-    height: 240,
+    width: 300,
+    height: 300,
     colorDark: '#0F172A',
     colorLight: '#FFFFFF',
     correctLevel: QRCode.CorrectLevel.H

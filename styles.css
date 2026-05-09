@@ -1876,7 +1876,7 @@ body.viewer-mode #role-badge {
 
 .qr-modal {
   background: var(--surface); border-radius: 20px;
-  padding: 28px 28px 24px; width: 320px;
+  padding: 28px 32px 28px; width: 400px;
   box-shadow: 0 24px 64px rgba(0,0,0,0.4);
   border: 1px solid var(--surface-high);
   animation: authIn 0.22s cubic-bezier(0.2,0,0,1);
@@ -1904,21 +1904,17 @@ body.viewer-mode #role-badge {
   font-size: 0.75rem; color: var(--outline); margin-top: 1px;
 }
 
+.qr-logo-above {
+  width: 36px; height: 36px;
+  border-radius: 8px; object-fit: contain;
+  margin-bottom: 14px;
+}
 .qr-canvas-wrap {
-  background: #fff; padding: 12px; border-radius: 12px;
+  background: #fff; padding: 16px; border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.12);
   display: flex; align-items: center; justify-content: center;
-  position: relative;
 }
 #qr-container canvas, #qr-container img { display: block; }
-.qr-logo-overlay {
-  position: absolute;
-  width: 44px; height: 44px;
-  border-radius: 8px;
-  border: 3px solid #fff;
-  object-fit: contain;
-  pointer-events: none;
-}
 
 .qr-route-id {
   margin-top: 10px; font-size: 0.68rem; color: var(--outline);
