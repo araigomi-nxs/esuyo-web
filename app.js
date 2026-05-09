@@ -528,26 +528,8 @@ function addTerrain() {
       attribution: 'Terrain: Mapzen/AWS'
     };
 
-    // MapLibre requires separate sources for hillshade and setTerrain to avoid rendering artefacts.
-    map.addSource('terrain-dem',    demSourceSpec);
-    map.addSource('terrain-dem-hs', demSourceSpec);
-
-    const firstSymbolForHs = map.getStyle().layers.find(l => l.type === 'symbol');
-    map.addLayer({
-      id: 'terrain-hillshade',
-      type: 'hillshade',
-      source: 'terrain-dem-hs',
-      layout: { visibility: 'none' },
-      paint: {
-        'hillshade-exaggeration': 0.3,
-        'hillshade-shadow-color': '#8a9bb0',
-        'hillshade-highlight-color': '#ffffff',
-        'hillshade-accent-color': '#b0bec5',
-        'hillshade-illumination-direction': 315,
-        'hillshade-illumination-anchor': 'map'
-      }
-    }, firstSymbolForHs?.id);
-
+    // terrain-dem-hs (hillshade) is lazy-loaded only when shader is first enabled.
+    map.addSource('terrain-dem', demSourceSpec);
     map.setTerrain({ source: 'terrain-dem', exaggeration: 0.65 });
 
     // Directional light from northwest at 45° — creates clear side-face contrast on 3D buildings.
@@ -663,7 +645,7 @@ function initSupabase() {
 let dbLandmarks = [];
 
 const LANDMARK_CACHE_KEY = 'esuyo_landmarks_v1';
-const LANDMARK_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const LANDMARK_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 function _readLandmarkCache() {
   try {
@@ -3252,6 +3234,7 @@ function toggleMapStyle() {
   // Clear stale layer/source tracking so renderAllRoutesOnMap re-adds cleanly
   routeLayers = {};
   routeSources = {};
+  _shaderLayerReady = false;
 
   map.setStyle(currentMapStyle, { diff: false });
 
@@ -3304,11 +3287,48 @@ function toggle3D() {
 }
 
 let _shaderOn = false;
+let _shaderLayerReady = false;
+
+function _ensureShaderLayer() {
+  if (_shaderLayerReady) return;
+  try {
+    const demSourceSpec = {
+      type: 'raster-dem',
+      tiles: ['dem-filtered://{z}/{x}/{y}.png'],
+      encoding: 'terrarium',
+      tileSize: 256,
+      maxzoom: 14,
+    };
+    if (!map.getSource('terrain-dem-hs')) map.addSource('terrain-dem-hs', demSourceSpec);
+    if (!map.getLayer('terrain-hillshade')) {
+      const firstSymbol = map.getStyle().layers.find(l => l.type === 'symbol');
+      map.addLayer({
+        id: 'terrain-hillshade',
+        type: 'hillshade',
+        source: 'terrain-dem-hs',
+        layout: { visibility: 'visible' },
+        paint: {
+          'hillshade-exaggeration': 0.3,
+          'hillshade-shadow-color': '#8a9bb0',
+          'hillshade-highlight-color': '#ffffff',
+          'hillshade-accent-color': '#b0bec5',
+          'hillshade-illumination-direction': 315,
+          'hillshade-illumination-anchor': 'map'
+        }
+      }, firstSymbol?.id);
+    }
+    _shaderLayerReady = true;
+  } catch (e) { console.warn('_ensureShaderLayer:', e); }
+}
+
 function toggleShader() {
   _shaderOn = !_shaderOn;
   document.getElementById('btn-shader').classList.toggle('active', _shaderOn);
-  const vis = _shaderOn ? 'visible' : 'none';
-  try { map.setLayoutProperty('terrain-hillshade', 'visibility', vis); } catch {}
+  if (_shaderOn) {
+    _ensureShaderLayer();
+  } else {
+    try { map.setLayoutProperty('terrain-hillshade', 'visibility', 'none'); } catch {}
+  }
 }
 
 // ── Ride Mode ─────────────────────────────────────
