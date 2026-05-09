@@ -123,6 +123,49 @@
   <!-- Sidebar Toggle -->
   <button id="sidebar-toggle" title="Toggle Sidebar">☰</button>
 
+  <!-- Feedback Widget (desktop, next to route manager) -->
+  <div id="feedback-widget">
+    <div class="fw-header" id="fw-header">
+      <div class="fw-title"><span class="fw-icon">💬</span> Submit Feedback</div>
+      <button class="fw-toggle-btn" id="fw-toggle-btn" title="Collapse">−</button>
+    </div>
+    <div class="fw-body" id="fw-body">
+      <div class="fw-field">
+        <label class="fw-label">Category <span class="fw-req">*</span></label>
+        <select id="fw-category" class="fw-select">
+          <option value="" disabled selected>Select a category…</option>
+          <option value="bug_report">🐛 Bug Report</option>
+          <option value="route_suggestion">🗺️ Route Suggestion</option>
+          <option value="wrong_route_info">⚠️ Wrong Route Info</option>
+          <option value="missing_stop">📍 Missing Stop</option>
+          <option value="fare_issue">💸 Fare Issue</option>
+          <option value="missing_landmark">🏛️ Missing Landmark</option>
+          <option value="inaccurate_schedule">🕐 Inaccurate Schedule</option>
+          <option value="map_issue">🗺️ Map Issue</option>
+          <option value="app_performance">⚡ App Performance</option>
+          <option value="safety_concern">🚨 Safety Concern</option>
+          <option value="feature_request">✨ Feature Request</option>
+          <option value="general">💬 General Feedback</option>
+        </select>
+      </div>
+      <div class="fw-field">
+        <label class="fw-label">Name <span class="fw-opt">(optional)</span></label>
+        <input type="text" id="fw-name" class="fw-input" placeholder="Your name…" autocomplete="off">
+      </div>
+      <div class="fw-field">
+        <label class="fw-label">Description <span class="fw-req">*</span></label>
+        <textarea id="fw-description" class="fw-textarea" rows="3" maxlength="1000" placeholder="Describe your feedback in detail…"></textarea>
+        <div class="fw-char-row"><span id="fw-char-count">0</span> / 1000</div>
+      </div>
+      <div class="fw-error hidden" id="fw-error"></div>
+      <button class="fw-submit-btn" id="fw-submit">Send Feedback</button>
+      <div class="fw-disclaimer">
+        For detailed feedback, fill out our
+        <a href="https://docs.google.com/forms/d/1ZKrg7iH35esm4r5bO0k_QTexhxCACKdCqoLvG460pos/viewform" target="_blank" rel="noopener">official feedback form ↗</a>
+      </div>
+    </div>
+  </div>
+
   <!-- Right Panel: Route Builder -->
   <div id="builder-panel">
     <div class="builder-header">

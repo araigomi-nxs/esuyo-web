@@ -2043,6 +2043,99 @@ body.viewer-mode #role-badge {
 }
 .qr-btn-download:hover { background: rgba(96,165,250,0.18); }
 
+/* ── Feedback Widget (desktop) ───────────────── */
+#feedback-widget {
+  position: fixed;
+  top: calc(var(--header-h) + 16px);
+  left: calc(var(--sidebar-w) + 28px);
+  width: 292px;
+  z-index: 100;
+  background: var(--surface);
+  border: 1px solid var(--surface-high);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  max-height: calc(100vh - var(--header-h) - 32px);
+  transition: transform var(--ease), opacity var(--ease);
+}
+#feedback-widget.fw-hidden { display: none; }
+
+.fw-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--surface-high);
+  flex-shrink: 0; cursor: pointer; user-select: none;
+}
+.fw-title {
+  display: flex; align-items: center; gap: 8px;
+  font-family: 'Lexend', sans-serif; font-size: 0.88rem;
+  font-weight: 700; color: var(--on-surface);
+}
+.fw-icon { font-size: 1rem; }
+.fw-toggle-btn {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--surface-high); border: none;
+  color: var(--outline); font-size: 1rem; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all var(--ease); flex-shrink: 0;
+}
+.fw-toggle-btn:hover { background: rgba(96,165,250,0.18); color: #60a5fa; }
+
+.fw-body {
+  padding: 14px 16px 16px;
+  display: flex; flex-direction: column; gap: 11px;
+  overflow-y: auto;
+}
+#feedback-widget.fw-collapsed .fw-body { display: none; }
+#feedback-widget.fw-collapsed .fw-toggle-btn { transform: rotate(180deg); }
+
+.fw-field { display: flex; flex-direction: column; gap: 5px; }
+.fw-label {
+  font-size: 0.75rem; font-weight: 600;
+  color: var(--on-surface-variant); letter-spacing: 0.02em;
+}
+.fw-req { color: #f87171; }
+.fw-opt { color: var(--outline); font-weight: 400; }
+
+.fw-select, .fw-input, .fw-textarea {
+  background: var(--surface-low); border: 1.5px solid var(--surface-high);
+  border-radius: var(--radius-sm); color: var(--on-surface);
+  font-size: 0.85rem; font-family: inherit; outline: none;
+  transition: border-color var(--ease); padding: 9px 11px;
+}
+.fw-select:focus, .fw-input:focus, .fw-textarea:focus { border-color: #60a5fa; }
+.fw-textarea { resize: vertical; min-height: 72px; }
+
+.fw-char-row {
+  text-align: right; font-size: 0.7rem; color: var(--outline); margin-top: 3px;
+}
+.fw-char-row.fw-near-limit { color: #f87171; font-weight: 600; }
+
+.fw-error {
+  font-size: 0.78rem; color: var(--error); font-weight: 600; padding: 2px 0;
+}
+.fw-error.hidden { display: none; }
+
+.fw-submit-btn {
+  width: 100%; padding: 11px; border-radius: var(--radius-sm);
+  background: #60a5fa; border: none; color: #fff;
+  font-size: 0.88rem; font-weight: 700; cursor: pointer;
+  font-family: 'Lexend', sans-serif; transition: background var(--ease);
+}
+.fw-submit-btn:hover { background: #3b82f6; }
+.fw-submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.fw-disclaimer {
+  font-size: 0.72rem; color: var(--outline); line-height: 1.5; text-align: center;
+}
+.fw-disclaimer a { color: #60a5fa; text-decoration: none; font-weight: 600; }
+.fw-disclaimer a:hover { text-decoration: underline; }
+
+@media (max-width: 640px) {
+  #feedback-widget { display: none; }
+}
+
 /* ── Survey Modal ────────────────────────────── */
 #survey-overlay {
   position: fixed; inset: 0; z-index: 700;
