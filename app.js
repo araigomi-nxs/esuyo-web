@@ -2846,6 +2846,7 @@ async function saveRoute() {
     routes.push(routeObj);
   }
 
+  const isNew = !editingRouteId;
   saveRoutes();
   btn.disabled = false; btn.textContent = 'Save Route';
   closeBuilder();
@@ -2853,6 +2854,7 @@ async function saveRoute() {
   renderRouteList();
   updateRouteCount();
   showRouteDetail(routeObj.id);
+  if (isNew) showQrModal(routeObj.id);
 }
 
 // ── Edit / Delete ─────────────────────────────────
