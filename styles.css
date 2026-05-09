@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════
-   E-Suyo — Route Admin Panel
+   E-Suyo — Interactive Map
    ═══════════════════════════════════════════════ */
 
 *, *::before, *::after {
@@ -2036,4 +2036,69 @@ body.viewer-mode #role-badge {
   cursor: pointer; transition: all var(--ease); font-family: inherit;
 }
 .qr-btn-download:hover { background: rgba(96,165,250,0.18); }
+
+/* ── Survey Modal ────────────────────────────── */
+#survey-overlay {
+  position: fixed; inset: 0; z-index: 700;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.45); backdrop-filter: blur(5px);
+}
+#survey-overlay.hidden { display: none; }
+
+.survey-modal {
+  position: relative;
+  background: var(--surface); border-radius: 20px;
+  padding: 36px 32px 28px; width: 320px;
+  max-width: calc(100vw - 40px);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+  border: 1px solid var(--surface-high);
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+  animation: surveyIn 0.3s cubic-bezier(0.2,0,0,1);
+  text-align: center;
+}
+@keyframes surveyIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to   { opacity: 1; transform: none; }
+}
+
+.survey-close {
+  position: absolute; top: 14px; right: 14px;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--surface-high); border: none;
+  color: var(--outline); font-size: 0.8rem;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all var(--ease);
+}
+.survey-close:hover { background: rgba(248,113,113,0.15); color: #f87171; }
+
+.survey-icon { font-size: 2.4rem; margin-bottom: 10px; }
+
+.survey-title {
+  font-family: 'Lexend', sans-serif; font-size: 1.15rem;
+  font-weight: 800; color: var(--on-surface);
+  margin: 0 0 10px; letter-spacing: -0.02em;
+}
+
+.survey-body {
+  font-size: 0.84rem; color: var(--on-surface-variant);
+  line-height: 1.55; margin: 0 0 20px;
+}
+
+.survey-btn {
+  display: block; width: 100%;
+  padding: 12px 0; border-radius: var(--radius-sm);
+  background: var(--primary); color: #fff;
+  font-family: 'Lexend', sans-serif; font-size: 0.9rem; font-weight: 700;
+  text-decoration: none; text-align: center;
+  transition: all var(--ease); margin-bottom: 10px;
+  box-shadow: 0 4px 16px rgba(0,70,199,0.28);
+}
+.survey-btn:hover { background: #0035a0; transform: translateY(-1px); }
+
+.survey-skip {
+  background: none; border: none; color: var(--outline);
+  font-size: 0.8rem; cursor: pointer; padding: 4px 8px;
+  border-radius: 6px; transition: color var(--ease);
+}
+.survey-skip:hover { color: var(--on-surface-variant); }
 

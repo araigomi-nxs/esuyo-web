@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
-  <title>E-Suyo — Route Admin Panel</title>
+  <title>E-Suyo — Interactive Map</title>
   <meta name="apple-mobile-web-app-capable" content="true">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="E-Suyo">
   <meta name="theme-color" content="#0046C7">
-  <meta name="description" content="E-Suyo Route Admin Panel for Legazpi City transportation">
+  <meta name="description" content="E-Suyo Interactive Map for Legazpi City transportation">
   <meta name="color-scheme" content="light">
   <meta name="mobile-web-app-capable" content="yes">
 
@@ -44,7 +44,7 @@
   <div id="loading-screen">
     <img src="assets/esuyo_logo.png" alt="E-SUYO" class="loading-logo-img">
     <div class="loading-tagline">Your guide to commuting in Albay</div>
-    <div class="loading-subtitle">Route Admin Panel</div>
+    <div class="loading-subtitle">E-Suyo Interactive Map</div>
     <div class="loading-spinner"></div>
     <div class="loading-text">Initializing map...</div>
   </div>
@@ -558,6 +558,23 @@
       <div class="qr-modal-actions">
         <button class="qr-btn-download admin-only" id="qr-btn-download">⬇ Download PNG</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Survey Modal -->
+  <div id="survey-overlay" class="hidden">
+    <div class="survey-modal">
+      <button class="survey-close" id="survey-close" aria-label="Close">✕</button>
+      <div class="survey-icon">📝</div>
+      <h3 class="survey-title">Like our app?</h3>
+      <p class="survey-body">Help us improve E-Suyo by answering a quick survey — it only takes a minute!</p>
+      <a
+        href="https://docs.google.com/forms/d/1ZKrg7iH35esm4r5bO0k_QTexhxCACKdCqoLvG460pos/viewform"
+        target="_blank" rel="noopener"
+        class="survey-btn" id="survey-btn">
+        Answer Survey ↗
+      </a>
+      <button class="survey-skip" id="survey-skip">Maybe later</button>
     </div>
   </div>
 

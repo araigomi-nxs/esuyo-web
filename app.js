@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════
-   E-Suyo — Route Admin Panel Logic
+   E-Suyo — Interactive Map Logic
    ═══════════════════════════════════════════════ */
 
 // ── Auth ──────────────────────────────────────────
@@ -4153,3 +4153,37 @@ async function savePlaceToMap() {
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ── Survey Modal ───────────────────────────────────
+(function initSurveyModal() {
+  const STORAGE_KEY = 'esuyo_survey_dismissed';
+  if (sessionStorage.getItem(STORAGE_KEY)) return;
+
+  function closeSurvey() {
+    sessionStorage.setItem(STORAGE_KEY, '1');
+    document.getElementById('survey-overlay').classList.add('hidden');
+  }
+
+  function showSurvey() {
+    if (sessionStorage.getItem(STORAGE_KEY)) return;
+    document.getElementById('survey-overlay').classList.remove('hidden');
+    document.getElementById('survey-close').addEventListener('click', closeSurvey);
+    document.getElementById('survey-skip').addEventListener('click', closeSurvey);
+    document.getElementById('survey-btn').addEventListener('click', closeSurvey);
+    document.getElementById('survey-overlay').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('survey-overlay')) closeSurvey();
+    });
+  }
+
+  // Wait for loading screen to disappear, then show survey after 4 s
+  const observer = new MutationObserver(() => {
+    const ls = document.getElementById('loading-screen');
+    if (ls && ls.classList.contains('hidden')) {
+      observer.disconnect();
+      setTimeout(showSurvey, 4000);
+    }
+  });
+  const ls = document.getElementById('loading-screen');
+  if (ls) observer.observe(ls, { attributes: true, attributeFilter: ['class'] });
+  else setTimeout(showSurvey, 5000);
+})();
