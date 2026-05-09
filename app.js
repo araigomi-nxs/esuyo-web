@@ -1281,11 +1281,17 @@ function _startRouteAnimation() {
       _flowStep = (_flowStep + 1) % _FLOW_DASH_SEQ.length;
       const dash = _FLOW_DASH_SEQ[_flowStep];
       _flowLayerIds.forEach(id => {
-        try { if (map.getLayer(id)) map.setPaintProperty(id, 'line-dasharray', dash); } catch {}
+        try {
+          if (map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none')
+            map.setPaintProperty(id, 'line-dasharray', dash);
+        } catch {}
       });
       const glowOpacity = 0.13 + 0.07 * Math.sin(ts / 900);
       _glowLayerIds.forEach(id => {
-        try { if (map.getLayer(id)) map.setPaintProperty(id, 'line-opacity', glowOpacity); } catch {}
+        try {
+          if (map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none')
+            map.setPaintProperty(id, 'line-opacity', glowOpacity);
+        } catch {}
       });
     }
     _flowAnimFrame = requestAnimationFrame(tick);
