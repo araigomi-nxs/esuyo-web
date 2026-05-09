@@ -1354,7 +1354,7 @@ function renderBrandMarkers() {
         .setLngLat([l.lng, l.lat])
         .setHTML(`<div class="landmark-popup">
           <strong>${escHtml(l.name)}</strong>
-          <span class="category">${pinIcon} ${escHtml(category)}</span>
+          <span class="category">${pinIcon} ${escHtml(LF_LABELS[category] || category)}</span>
           <span class="coords">${l.lat.toFixed(4)}, ${l.lng.toFixed(4)}</span>
           ${dbBtns}
         </div>`)
@@ -1525,7 +1525,7 @@ function initLandmarkEvents() {
           .setLngLat(e.lngLat)
           .setHTML(`<div class="landmark-popup">
             <strong>${escHtml(props.name)}</strong>
-            <span class="category">${pinIcon} ${escHtml(props.category)}</span>
+            <span class="category">${pinIcon} ${escHtml(LF_LABELS[category] || category)}</span>
             <span class="coords">${lat.toFixed(4)}, ${lng.toFixed(4)}</span>
             ${dbBtns}
           </div>`)
@@ -1817,7 +1817,7 @@ function addRouteToMap(route) {
   }, _bl);
 
   const handleStopClick = (e) => {
-    if (builderOpen) return;
+    if (builderOpen || simActive) return;
     const props = e.features[0]?.properties;
     const idx = props?.idx;
     const stop = route.stops[idx];
@@ -1837,7 +1837,7 @@ function addRouteToMap(route) {
   map.on('mouseleave', terminalId, () => { if (!builderOpen) map.getCanvas().style.cursor = ''; });
 
   map.on('click', lineId, async (e) => {
-    if (builderOpen) return;
+    if (builderOpen || simActive) return;
     const onStop = map.queryRenderedFeatures(e.point, { layers: [stopsId, terminalClickId, terminalId] });
     if (onStop.length > 0) return;
 
@@ -1973,14 +1973,20 @@ function hideOtherRoutes(routeId) {
   if (!map || !routes.length) return;
   routes.forEach(r => {
     const isActive = r.id === routeId;
-    try { map.setPaintProperty(`line-${r.id}`, 'line-opacity', isActive ? 1 : 0.02); } catch {}
-    try { map.setPaintProperty(`line-${r.id}`, 'line-width', isActive ? 5 : 2); } catch {}
-    try { map.setPaintProperty(`stops-${r.id}`, 'circle-opacity', isActive ? 0.95 : 0.02); } catch {}
-    try { map.setPaintProperty(`glow-${r.id}`, 'line-opacity', isActive ? 0.4 : 0); } catch {}
+    const vis = isActive ? 'visible' : 'none';
+    try { map.setLayoutProperty(`line-${r.id}`, 'visibility', vis); } catch {}
+    try { map.setPaintProperty(`line-${r.id}`, 'line-opacity', isActive ? 1 : 0.9); } catch {}
+    try { map.setPaintProperty(`line-${r.id}`, 'line-width', isActive ? 5 : 4); } catch {}
+    try { map.setLayoutProperty(`stops-${r.id}`, 'visibility', vis); } catch {}
+    try { map.setPaintProperty(`stops-${r.id}`, 'circle-opacity', 0.95); } catch {}
+    try { map.setLayoutProperty(`glow-${r.id}`, 'visibility', vis); } catch {}
+    try { map.setPaintProperty(`glow-${r.id}`, 'line-opacity', isActive ? 0.4 : 0.12); } catch {}
     try { map.setLayoutProperty(`arrows-${r.id}`, 'visibility', isActive ? 'visible' : 'none'); } catch {}
     try { map.setLayoutProperty(`reverse-arrows-${r.id}`, 'visibility', isActive ? 'visible' : 'none'); } catch {}
-    try { map.setPaintProperty(`terminal-${r.id}`, 'icon-opacity', isActive ? 1 : 0.02); } catch {}
-    try { map.setPaintProperty(`terminal-click-${r.id}`, 'circle-opacity', isActive ? 0 : 0); } catch {}
+    try { map.setLayoutProperty(`terminal-${r.id}`, 'visibility', vis); } catch {}
+    try { map.setPaintProperty(`terminal-${r.id}`, 'icon-opacity', 1); } catch {}
+    try { map.setPaintProperty(`terminal-click-${r.id}`, 'circle-opacity', 0); } catch {}
+    try { map.setLayoutProperty(`flow-${r.id}`, 'visibility', vis); } catch {}
     try { map.setPaintProperty(`flow-${r.id}`, 'line-opacity', isActive ? 0.5 : 0); } catch {}
   });
   _startRouteAnimation();
@@ -1990,14 +1996,19 @@ function showAllRoutes() {
   if (!map || !routes.length) return;
   _stopRouteAnimation();
   routes.forEach(r => {
+    try { map.setLayoutProperty(`line-${r.id}`, 'visibility', 'visible'); } catch {}
     try { map.setPaintProperty(`line-${r.id}`, 'line-opacity', 0.9); } catch {}
     try { map.setPaintProperty(`line-${r.id}`, 'line-width', 4); } catch {}
+    try { map.setLayoutProperty(`stops-${r.id}`, 'visibility', 'visible'); } catch {}
     try { map.setPaintProperty(`stops-${r.id}`, 'circle-opacity', 0.95); } catch {}
+    try { map.setLayoutProperty(`glow-${r.id}`, 'visibility', 'visible'); } catch {}
     try { map.setPaintProperty(`glow-${r.id}`, 'line-opacity', 0.12); } catch {}
     try { map.setLayoutProperty(`arrows-${r.id}`, 'visibility', 'visible'); } catch {}
     try { map.setLayoutProperty(`reverse-arrows-${r.id}`, 'visibility', 'visible'); } catch {}
+    try { map.setLayoutProperty(`terminal-${r.id}`, 'visibility', 'visible'); } catch {}
     try { map.setPaintProperty(`terminal-${r.id}`, 'icon-opacity', 1); } catch {}
     try { map.setPaintProperty(`terminal-click-${r.id}`, 'circle-opacity', 0); } catch {}
+    try { map.setLayoutProperty(`flow-${r.id}`, 'visibility', 'visible'); } catch {}
     try { map.setPaintProperty(`flow-${r.id}`, 'line-opacity', 0); } catch {}
   });
 }
@@ -2110,13 +2121,18 @@ function applyMapFilter(visibleIds) {
   const all = visibleIds === null;
   routes.forEach(r => {
     const show = all || visibleIds.has(r.id);
-    try { map.setPaintProperty(`line-${r.id}`, 'line-opacity', show ? 0.9 : 0.04); } catch {}
-    try { map.setPaintProperty(`line-${r.id}`, 'line-width', show ? 4 : 2); } catch {}
-    try { map.setPaintProperty(`stops-${r.id}`, 'circle-opacity', show ? 0.95 : 0.04); } catch {}
-    try { map.setPaintProperty(`glow-${r.id}`, 'line-opacity', show ? 0.12 : 0); } catch {}
+    const vis = show ? 'visible' : 'none';
+    try { map.setLayoutProperty(`line-${r.id}`, 'visibility', vis); } catch {}
+    try { map.setPaintProperty(`line-${r.id}`, 'line-opacity', 0.9); } catch {}
+    try { map.setPaintProperty(`line-${r.id}`, 'line-width', 4); } catch {}
+    try { map.setLayoutProperty(`stops-${r.id}`, 'visibility', vis); } catch {}
+    try { map.setPaintProperty(`stops-${r.id}`, 'circle-opacity', 0.95); } catch {}
+    try { map.setLayoutProperty(`glow-${r.id}`, 'visibility', vis); } catch {}
+    try { map.setPaintProperty(`glow-${r.id}`, 'line-opacity', 0.12); } catch {}
     try { map.setLayoutProperty(`arrows-${r.id}`, 'visibility', show ? 'visible' : 'none'); } catch {}
     try { map.setLayoutProperty(`reverse-arrows-${r.id}`, 'visibility', show ? 'visible' : 'none'); } catch {}
-    try { map.setPaintProperty(`terminal-${r.id}`, 'icon-opacity', show ? 1 : 0.04); } catch {}
+    try { map.setLayoutProperty(`terminal-${r.id}`, 'visibility', vis); } catch {}
+    try { map.setPaintProperty(`terminal-${r.id}`, 'icon-opacity', 1); } catch {}
   });
 }
 
