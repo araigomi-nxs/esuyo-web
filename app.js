@@ -4370,13 +4370,13 @@ function initAllRatings() {
 // ── Page View Tracking ────────────────────────────
 async function trackPageView() {
   if (!_supabase) return;
-  if (sessionStorage.getItem('esuyo_viewed')) {
+  if (localStorage.getItem('esuyo_viewed')) {
     if (isAdmin()) loadPageViewCount();
     return;
   }
   try {
     await _supabase.from('page_views').insert({});
-    sessionStorage.setItem('esuyo_viewed', '1');
+    localStorage.setItem('esuyo_viewed', '1');
   } catch (e) {
     console.warn('Page view insert failed:', e);
   }
