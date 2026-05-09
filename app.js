@@ -537,6 +537,7 @@ function addTerrain() {
       id: 'terrain-hillshade',
       type: 'hillshade',
       source: 'terrain-dem-hs',
+      layout: { visibility: 'none' },
       paint: {
         'hillshade-exaggeration': 0.3,
         'hillshade-shadow-color': '#8a9bb0',
