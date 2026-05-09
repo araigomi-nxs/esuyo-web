@@ -1860,6 +1860,22 @@ body.viewer-mode #role-badge {
 /* ── Feedback Button ─────────────────────────── */
 .feedback-btn-wrap { position: relative; display: inline-flex; }
 
+/* Mobile mail button — desktop hidden, mobile visible */
+.mobile-feedback-wrap {
+  position: relative; display: none; flex-shrink: 0;
+}
+@media (max-width: 640px) {
+  .mobile-feedback-wrap { display: inline-flex; }
+}
+.mobile-feedback-btn {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: rgba(96,165,250,0.12); border: 1.5px solid rgba(96,165,250,0.28);
+  color: #60a5fa; font-size: 1rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--ease);
+}
+.mobile-feedback-btn:hover { background: rgba(96,165,250,0.22); }
+
 .feedback-btn {
   background: rgba(96,165,250,0.1);
   border-color: rgba(96,165,250,0.25);

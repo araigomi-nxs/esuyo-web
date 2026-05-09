@@ -4001,6 +4001,10 @@ function bindEvents() {
   document.getElementById('btn-delete-detail').addEventListener('click', () => { if (activeRouteId) confirmDelete(activeRouteId); });
   document.getElementById('btn-gen-qr').addEventListener('click', () => { if (activeRouteId) showQrModal(activeRouteId); });
   document.getElementById('feedback-close').addEventListener('click', closeFeedback);
+  document.getElementById('btn-mobile-feedback').addEventListener('click', () => {
+    document.getElementById('mobile-feedback-ping').classList.add('hidden');
+    openFeedback();
+  });
   document.getElementById('feedback-overlay').addEventListener('click', e => { if (e.target.id === 'feedback-overlay') closeFeedback(); });
   document.getElementById('feedback-submit').addEventListener('click', submitFeedback);
   initFeedbackCharCounter();
