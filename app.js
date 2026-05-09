@@ -528,13 +528,8 @@ function addTerrain() {
       attribution: 'Terrain: Mapzen/AWS'
     };
 
-    // terrain-dem-hs (hillshade) is lazy-loaded only when shader is first enabled.
+    // terrain-dem source is added here; setTerrain + hillshade are lazy-loaded on first shader toggle.
     map.addSource('terrain-dem', demSourceSpec);
-    map.setTerrain({ source: 'terrain-dem', exaggeration: 0.65 });
-
-    // Directional light from northwest at 45° — creates clear side-face contrast on 3D buildings.
-    // position: [radial dist, azimuth °, polar/altitude °]
-    map.setLight({ anchor: 'map', color: '#ffffff', intensity: 0.35, position: [1.5, 315, 45] });
 
     map.addLayer({
       id: 'sky-layer',
@@ -3317,6 +3312,8 @@ function _ensureShaderLayer() {
         }
       }, firstSymbol?.id);
     }
+    map.setTerrain({ source: 'terrain-dem', exaggeration: 0.65 });
+    map.setLight({ anchor: 'map', color: '#ffffff', intensity: 0.35, position: [1.5, 315, 45] });
     _shaderLayerReady = true;
   } catch (e) { console.warn('_ensureShaderLayer:', e); }
 }
@@ -3328,6 +3325,7 @@ function toggleShader() {
     _ensureShaderLayer();
   } else {
     try { map.setLayoutProperty('terrain-hillshade', 'visibility', 'none'); } catch {}
+    try { map.setTerrain(null); } catch {}
   }
 }
 
