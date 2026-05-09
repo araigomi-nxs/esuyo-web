@@ -522,7 +522,10 @@
         </div>
         <div class="feedback-field">
           <label class="feedback-label">Description <span class="feedback-required">*</span></label>
-          <textarea id="feedback-description" class="feedback-textarea" placeholder="Describe your feedback in detail…" rows="4"></textarea>
+          <textarea id="feedback-description" class="feedback-textarea" placeholder="Describe your feedback in detail…" rows="4" maxlength="1000"></textarea>
+          <div class="feedback-char-row">
+            <span id="feedback-char-count">0</span> / 1000
+          </div>
         </div>
         <div class="feedback-error hidden" id="feedback-error"></div>
         <button class="feedback-submit-btn" id="feedback-submit">Send Feedback</button>

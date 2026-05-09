@@ -2275,13 +2275,40 @@ function hideRouteDetail() {
 }
 
 // ── Feedback ──────────────────────────────────────
+const FEEDBACK_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+const FEEDBACK_COOLDOWN_KEY = 'esuyo_feedback_last';
+const FEEDBACK_MAX_CHARS = 1000;
+// Blocks obvious SQL injection patterns in text fields
+const SQL_RE = /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|EXEC|EXECUTE|UNION|CAST|CONVERT|DECLARE|FETCH|CURSOR|GRANT|REVOKE)\b|--|\/\*|\*\/|'\s*(OR|AND)\s*'?\d)/i;
+
+function hasSqlInjection(str) {
+  return SQL_RE.test(str);
+}
+
+function getFeedbackCooldownRemaining() {
+  const last = parseInt(localStorage.getItem(FEEDBACK_COOLDOWN_KEY) || '0', 10);
+  const remaining = last + FEEDBACK_COOLDOWN_MS - Date.now();
+  return remaining > 0 ? remaining : 0;
+}
+
 function openFeedback() {
   document.getElementById('feedback-category').value = '';
   document.getElementById('feedback-name').value = '';
   document.getElementById('feedback-description').value = '';
+  document.getElementById('feedback-char-count').textContent = '0';
+  document.getElementById('feedback-char-count').closest('.feedback-char-row').classList.remove('near-limit');
   document.getElementById('feedback-error').classList.add('hidden');
-  document.getElementById('feedback-submit').disabled = false;
-  document.getElementById('feedback-submit').textContent = 'Send Feedback';
+
+  const remaining = getFeedbackCooldownRemaining();
+  const btn = document.getElementById('feedback-submit');
+  if (remaining > 0) {
+    const mins = Math.ceil(remaining / 60000);
+    btn.disabled = true;
+    btn.textContent = `Try again in ${mins} min`;
+  } else {
+    btn.disabled = false;
+    btn.textContent = 'Send Feedback';
+  }
   document.getElementById('feedback-overlay').classList.remove('hidden');
 }
 
@@ -2298,6 +2325,19 @@ async function submitFeedback() {
 
   if (!category) { showFeedbackError('Please select a category.'); return; }
   if (!description) { showFeedbackError('Please enter a description.'); return; }
+  if (description.length > FEEDBACK_MAX_CHARS) {
+    showFeedbackError(`Description must be ${FEEDBACK_MAX_CHARS} characters or fewer.`); return;
+  }
+  if (hasSqlInjection(description) || hasSqlInjection(name)) {
+    showFeedbackError('Invalid characters detected. Please rephrase your feedback.'); return;
+  }
+
+  const remaining = getFeedbackCooldownRemaining();
+  if (remaining > 0) {
+    const mins = Math.ceil(remaining / 60000);
+    showFeedbackError(`Please wait ${mins} more minute${mins !== 1 ? 's' : ''} before submitting again.`);
+    return;
+  }
 
   btn.disabled = true;
   btn.textContent = 'Sending…';
@@ -2310,6 +2350,7 @@ async function submitFeedback() {
       description,
     });
     if (error) throw error;
+    localStorage.setItem(FEEDBACK_COOLDOWN_KEY, String(Date.now()));
     btn.textContent = '✓ Sent!';
     btn.classList.add('feedback-sent');
     setTimeout(closeFeedback, 1200);
@@ -2324,6 +2365,17 @@ function showFeedbackError(msg) {
   const el = document.getElementById('feedback-error');
   el.textContent = msg;
   el.classList.remove('hidden');
+}
+
+function initFeedbackCharCounter() {
+  const ta = document.getElementById('feedback-description');
+  const counter = document.getElementById('feedback-char-count');
+  const row = counter.closest('.feedback-char-row');
+  ta.addEventListener('input', () => {
+    const len = ta.value.length;
+    counter.textContent = len;
+    row.classList.toggle('near-limit', len >= 900);
+  });
 }
 
 // ── QR Code ───────────────────────────────────────
