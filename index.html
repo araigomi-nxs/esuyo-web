@@ -71,6 +71,7 @@
         </div>
         <div class="fare-matrix-tooltip" id="fare-matrix-tooltip"></div>
       </div>
+      <button class="header-btn feedback-btn" id="btn-feedback" title="Submit feedback">💬 Feedback</button>
       <button class="header-btn" id="btn-refresh-pins" title="Reload landmarks from database">↻ Refresh Pins</button>
       <button class="header-btn admin-only" id="btn-sync-db" title="Save all routes to database">☁ Sync to DB</button>
       <button class="header-btn admin-only" id="btn-export" title="Export routes as JSON">⬇ Export</button>
@@ -486,7 +487,50 @@
     </div>
   </div>
 
-<!-- QR Modal -->
+<!-- Feedback Modal -->
+  <div id="feedback-overlay" class="hidden">
+    <div class="feedback-modal">
+      <div class="feedback-header">
+        <div class="feedback-title">
+          <span class="feedback-title-icon">💬</span>
+          <h3>Submit Feedback</h3>
+        </div>
+        <button class="btn-icon" id="feedback-close">✕</button>
+      </div>
+      <div class="feedback-body">
+        <div class="feedback-field">
+          <label class="feedback-label">Category <span class="feedback-required">*</span></label>
+          <select id="feedback-category" class="feedback-select">
+            <option value="" disabled selected>Select a category…</option>
+            <option value="bug_report">🐛 Bug Report</option>
+            <option value="route_suggestion">🗺️ Route Suggestion</option>
+            <option value="wrong_route_info">⚠️ Wrong Route Info</option>
+            <option value="missing_stop">📍 Missing Stop</option>
+            <option value="fare_issue">💸 Fare Issue</option>
+            <option value="missing_landmark">🏛️ Missing Landmark</option>
+            <option value="inaccurate_schedule">🕐 Inaccurate Schedule</option>
+            <option value="map_issue">🗺️ Map Issue</option>
+            <option value="app_performance">⚡ App Performance</option>
+            <option value="safety_concern">🚨 Safety Concern</option>
+            <option value="feature_request">✨ Feature Request</option>
+            <option value="general">💬 General Feedback</option>
+          </select>
+        </div>
+        <div class="feedback-field">
+          <label class="feedback-label">Name <span class="feedback-optional">(optional)</span></label>
+          <input type="text" id="feedback-name" class="feedback-input" placeholder="Your name…" autocomplete="off">
+        </div>
+        <div class="feedback-field">
+          <label class="feedback-label">Description <span class="feedback-required">*</span></label>
+          <textarea id="feedback-description" class="feedback-textarea" placeholder="Describe your feedback in detail…" rows="4"></textarea>
+        </div>
+        <div class="feedback-error hidden" id="feedback-error"></div>
+        <button class="feedback-submit-btn" id="feedback-submit">Send Feedback</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Modal -->
   <div id="qr-modal-overlay" class="hidden">
     <div class="qr-modal">
       <div class="qr-modal-header">

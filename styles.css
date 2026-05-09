@@ -1857,6 +1857,91 @@ body.viewer-mode #role-badge {
   animation: orb-jump 1.2s ease-out infinite;
 }
 
+/* ── Feedback Button ─────────────────────────── */
+.feedback-btn {
+  background: rgba(96,165,250,0.1);
+  border-color: rgba(96,165,250,0.25);
+  color: #60a5fa;
+}
+.feedback-btn:hover { background: rgba(96,165,250,0.18); }
+
+/* ── Feedback Modal ──────────────────────────── */
+#feedback-overlay {
+  position: fixed; inset: 0; z-index: 600;
+  background: rgba(0,0,0,0.55); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+}
+#feedback-overlay.hidden { display: none; }
+
+.feedback-modal {
+  background: var(--surface); border-radius: 20px;
+  width: 420px; max-width: calc(100vw - 32px);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+  border: 1px solid var(--surface-high);
+  animation: authIn 0.22s cubic-bezier(0.2,0,0,1);
+  overflow: hidden;
+}
+
+.feedback-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--surface-high);
+}
+
+.feedback-title {
+  display: flex; align-items: center; gap: 10px;
+}
+
+.feedback-title-icon { font-size: 1.2rem; }
+
+.feedback-title h3 {
+  font-family: 'Lexend', sans-serif; font-size: 1rem;
+  font-weight: 700; color: var(--on-surface); margin: 0;
+}
+
+.feedback-body { padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 14px; }
+
+.feedback-field { display: flex; flex-direction: column; gap: 6px; }
+
+.feedback-label {
+  font-size: 0.8rem; font-weight: 600;
+  color: var(--on-surface-variant); letter-spacing: 0.02em;
+}
+
+.feedback-required { color: #f87171; }
+.feedback-optional { color: var(--outline); font-weight: 400; }
+
+.feedback-select, .feedback-input, .feedback-textarea {
+  background: var(--surface-low); border: 1.5px solid var(--surface-high);
+  border-radius: var(--radius-sm); color: var(--on-surface);
+  font-size: 0.88rem; font-family: inherit; outline: none;
+  transition: border-color var(--ease);
+  padding: 10px 12px;
+}
+
+.feedback-select:focus, .feedback-input:focus, .feedback-textarea:focus {
+  border-color: #60a5fa;
+}
+
+.feedback-textarea { resize: vertical; min-height: 90px; }
+
+.feedback-error {
+  font-size: 0.8rem; color: var(--error);
+  font-weight: 600; padding: 2px 0;
+}
+.feedback-error.hidden { display: none; }
+
+.feedback-submit-btn {
+  width: 100%; padding: 13px; border-radius: var(--radius-sm);
+  background: #60a5fa; border: none; color: #fff;
+  font-size: 0.9rem; font-weight: 700; cursor: pointer;
+  font-family: 'Lexend', sans-serif;
+  transition: background var(--ease);
+}
+.feedback-submit-btn:hover { background: #3b82f6; }
+.feedback-submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.feedback-submit-btn.feedback-sent { background: #22c55e; }
+
 /* ── QR Code Button ──────────────────────────── */
 .btn-gen-qr {
   flex: 1; padding: 9px; border-radius: var(--radius-sm);

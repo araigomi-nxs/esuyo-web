@@ -331,7 +331,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ── Persistence ──────────────────────────────────
 async function loadRoutes() {
   try {
-    const { data, error } = await _supabase.from('routes').select('*').order('created_at', { ascending: true });
+    const { data, error } = await _supabase.from('routes').select('*').or('status.eq.approved,status.is.null').order('created_at', { ascending: true });
     if (error) throw error;
     routes = data;
     localStorage.setItem('esuyo_routes', JSON.stringify(routes)); // cache
@@ -696,6 +696,7 @@ async function fetchLandmarksFromDB(forceFresh = false) {
   const { data, error } = await _supabase
     .from('landmarks')
     .select('*')
+    .or('status.eq.approved,status.is.null')
     .order('created_at', { ascending: true });
   if (error) { console.error('Landmark fetch error:', error); return; }
   dbLandmarks = data || [];
@@ -2291,6 +2292,58 @@ function hideRouteDetail() {
   renderRouteList(document.getElementById('route-search').value);
 }
 
+// ── Feedback ──────────────────────────────────────
+function openFeedback() {
+  document.getElementById('feedback-category').value = '';
+  document.getElementById('feedback-name').value = '';
+  document.getElementById('feedback-description').value = '';
+  document.getElementById('feedback-error').classList.add('hidden');
+  document.getElementById('feedback-submit').disabled = false;
+  document.getElementById('feedback-submit').textContent = 'Send Feedback';
+  document.getElementById('feedback-overlay').classList.remove('hidden');
+}
+
+function closeFeedback() {
+  document.getElementById('feedback-overlay').classList.add('hidden');
+}
+
+async function submitFeedback() {
+  const category = document.getElementById('feedback-category').value;
+  const name = document.getElementById('feedback-name').value.trim();
+  const description = document.getElementById('feedback-description').value.trim();
+  const errEl = document.getElementById('feedback-error');
+  const btn = document.getElementById('feedback-submit');
+
+  if (!category) { showFeedbackError('Please select a category.'); return; }
+  if (!description) { showFeedbackError('Please enter a description.'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  errEl.classList.add('hidden');
+
+  try {
+    const { error } = await _supabase.from('feedback').insert({
+      category,
+      name: name || null,
+      description,
+    });
+    if (error) throw error;
+    btn.textContent = '✓ Sent!';
+    btn.classList.add('feedback-sent');
+    setTimeout(closeFeedback, 1200);
+  } catch (e) {
+    showFeedbackError('Failed to send: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = 'Send Feedback';
+  }
+}
+
+function showFeedbackError(msg) {
+  const el = document.getElementById('feedback-error');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
 // ── QR Code ───────────────────────────────────────
 function showQrModal(routeId) {
   const route = routes.find(r => r.id === routeId);
@@ -3752,6 +3805,10 @@ function bindEvents() {
   document.getElementById('btn-simulate-route').addEventListener('click', () => { if (activeRouteId) startSimulation(activeRouteId); });
   document.getElementById('btn-delete-detail').addEventListener('click', () => { if (activeRouteId) confirmDelete(activeRouteId); });
   document.getElementById('btn-gen-qr').addEventListener('click', () => { if (activeRouteId) showQrModal(activeRouteId); });
+  document.getElementById('feedback-close').addEventListener('click', closeFeedback);
+  document.getElementById('feedback-overlay').addEventListener('click', e => { if (e.target.id === 'feedback-overlay') closeFeedback(); });
+  document.getElementById('feedback-submit').addEventListener('click', submitFeedback);
+  document.getElementById('btn-feedback').addEventListener('click', openFeedback);
   document.getElementById('qr-modal-close').addEventListener('click', closeQrModal);
   document.getElementById('qr-modal-overlay').addEventListener('click', e => { if (e.target.id === 'qr-modal-overlay') closeQrModal(); });
   document.getElementById('qr-btn-download').addEventListener('click', downloadQr);
