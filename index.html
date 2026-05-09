@@ -71,8 +71,8 @@
         </div>
         <div class="fare-matrix-tooltip" id="fare-matrix-tooltip"></div>
       </div>
-      <button class="header-btn feedback-btn" id="btn-feedback" title="Submit feedback">💬 Feedback</button>
       <button class="header-btn" id="btn-refresh-pins" title="Reload landmarks from database">↻ Refresh Pins</button>
+      <div class="status-badge admin-only" id="pageview-badge" title="Total page views">👁 <span id="pageview-count">—</span></div>
       <button class="header-btn admin-only" id="btn-sync-db" title="Save all routes to database">☁ Sync to DB</button>
       <button class="header-btn admin-only" id="btn-export" title="Export routes as JSON">⬇ Export</button>
     </div>
@@ -130,6 +130,18 @@
       <button class="fw-toggle-btn" id="fw-toggle-btn" title="Collapse">−</button>
     </div>
     <div class="fw-body" id="fw-body">
+      <div class="fw-nudge">We need your feedback to improve E-Suyo! 🙏</div>
+      <div class="fw-rating-block" id="fw-rating-block">
+        <div class="fw-label">Rate your experience</div>
+        <div class="fw-stars" id="fw-stars">
+          <button class="fw-star" data-val="1">★</button>
+          <button class="fw-star" data-val="2">★</button>
+          <button class="fw-star" data-val="3">★</button>
+          <button class="fw-star" data-val="4">★</button>
+          <button class="fw-star" data-val="5">★</button>
+        </div>
+        <div class="fw-rating-msg" id="fw-rating-msg"></div>
+      </div>
       <div class="fw-field">
         <label class="fw-label">Category <span class="fw-req">*</span></label>
         <select id="fw-category" class="fw-select">
@@ -541,6 +553,17 @@
         <button class="btn-icon" id="feedback-close">✕</button>
       </div>
       <div class="feedback-body">
+        <div class="fw-rating-block" id="modal-rating-block">
+          <div class="feedback-label">Rate your experience</div>
+          <div class="fw-stars" id="modal-stars">
+            <button class="fw-star" data-val="1">★</button>
+            <button class="fw-star" data-val="2">★</button>
+            <button class="fw-star" data-val="3">★</button>
+            <button class="fw-star" data-val="4">★</button>
+            <button class="fw-star" data-val="5">★</button>
+          </div>
+          <div class="fw-rating-msg" id="modal-rating-msg"></div>
+        </div>
         <div class="feedback-field">
           <label class="feedback-label">Category <span class="feedback-required">*</span></label>
           <select id="feedback-category" class="feedback-select">

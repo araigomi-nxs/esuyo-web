@@ -329,6 +329,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initMobileSidebarCollapse(); // Collapse sidebar on mobile by default
   
   // Defer Google Places init until builder is opened (lazy load)
+  trackPageView();
 });
 
 // ── Persistence ──────────────────────────────────
@@ -4002,17 +4003,9 @@ function bindEvents() {
   document.getElementById('feedback-close').addEventListener('click', closeFeedback);
   document.getElementById('feedback-overlay').addEventListener('click', e => { if (e.target.id === 'feedback-overlay') closeFeedback(); });
   document.getElementById('feedback-submit').addEventListener('click', submitFeedback);
-  document.getElementById('btn-feedback').addEventListener('click', () => {
-    if (DEVICE_CONFIG.isMobile()) {
-      openFeedback();
-    } else {
-      const widget = document.getElementById('feedback-widget');
-      widget.classList.remove('fw-hidden', 'fw-collapsed');
-      document.getElementById('fw-category').focus();
-    }
-  });
   initFeedbackCharCounter();
   initFeedbackWidget();
+  initAllRatings();
   document.getElementById('qr-modal-close').addEventListener('click', closeQrModal);
   document.getElementById('qr-modal-overlay').addEventListener('click', e => { if (e.target.id === 'qr-modal-overlay') closeQrModal(); });
   document.getElementById('qr-btn-download').addEventListener('click', downloadQr);
@@ -4317,6 +4310,84 @@ async function savePlaceToMap() {
     if (isAdmin() && !landmarksVisible) toggleLandmarks();
   } else {
     btn.textContent = isAdmin() ? 'Save to Map' : 'Submit';
+  }
+}
+
+// ── Rating ────────────────────────────────────────
+const RATING_KEY = 'esuyo_rating';
+
+function initRatingStars(starsId, msgId) {
+  const container = document.getElementById(starsId);
+  const msg = document.getElementById(msgId);
+  if (!container || !msg) return;
+
+  const stars = Array.from(container.querySelectorAll('.fw-star'));
+  const saved = parseInt(localStorage.getItem(RATING_KEY) || '0', 10);
+
+  function setDisplay(val, readonly) {
+    stars.forEach((s, i) => {
+      s.classList.toggle('selected', i < val);
+      s.classList.toggle('readonly', readonly);
+    });
+    if (readonly && val) {
+      msg.textContent = `You rated ${val}/5 — thanks!`;
+      msg.classList.add('rated');
+    }
+  }
+
+  if (saved) { setDisplay(saved, true); return; }
+
+  stars.forEach((star, i) => {
+    star.addEventListener('mouseenter', () => {
+      stars.forEach((s, j) => s.classList.toggle('hovered', j <= i));
+    });
+    star.addEventListener('mouseleave', () => {
+      stars.forEach(s => s.classList.remove('hovered'));
+    });
+    star.addEventListener('click', async () => {
+      const val = parseInt(star.dataset.val, 10);
+      localStorage.setItem(RATING_KEY, String(val));
+      setDisplay(val, true);
+      stars.forEach(s => { s.removeEventListener('mouseenter', () => {}); s.removeEventListener('mouseleave', () => {}); });
+      try {
+        await _supabase.from('ratings').insert({ score: val });
+      } catch (e) {
+        console.warn('Rating insert failed:', e);
+      }
+    });
+  });
+}
+
+function initAllRatings() {
+  initRatingStars('fw-stars', 'fw-rating-msg');
+  initRatingStars('modal-stars', 'modal-rating-msg');
+}
+
+// ── Page View Tracking ────────────────────────────
+async function trackPageView() {
+  if (!_supabase) return;
+  if (sessionStorage.getItem('esuyo_viewed')) {
+    if (isAdmin()) loadPageViewCount();
+    return;
+  }
+  try {
+    await _supabase.from('page_views').insert({});
+    sessionStorage.setItem('esuyo_viewed', '1');
+  } catch (e) {
+    console.warn('Page view insert failed:', e);
+  }
+  if (isAdmin()) loadPageViewCount();
+}
+
+async function loadPageViewCount() {
+  try {
+    const { count } = await _supabase
+      .from('page_views')
+      .select('*', { count: 'exact', head: true });
+    const el = document.getElementById('pageview-count');
+    if (el) el.textContent = count?.toLocaleString() ?? '—';
+  } catch (e) {
+    console.warn('Page view count failed:', e);
   }
 }
 
