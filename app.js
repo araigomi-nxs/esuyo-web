@@ -172,8 +172,7 @@ let _lastRideDistKm = null;
 
 // ── Geocoding (Nominatim + CORS Proxy) ──────────
 const NOMINATIM = 'https://nominatim.openstreetmap.org';
-const CORS_PROXY = 'https://corsproxy.io/?';
-const NOMINATIM_OPTS = { headers: { 'User-Agent': 'E-Suyo/1.0' } };
+const NOMINATIM_OPTS = {};
 let _geocodeQueue = Promise.resolve();
 let _lastGeocodeTime = 0;
 const GEOCODE_MIN_DELAY = 1000; // Rate limit: 1 req/sec
@@ -196,7 +195,7 @@ async function getCoordsFromPlace(placeName) {
     
     try {
       const url = `${NOMINATIM}/search?format=json&q=${encodeURIComponent(placeName + ', Legazpi Albay')}&limit=1`;
-      const res = await fetch(CORS_PROXY + encodeURIComponent(url), NOMINATIM_OPTS);
+      const res = await fetch(url, NOMINATIM_OPTS);
       const data = await res.json();
       if (data && data[0]) {
         const result = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
@@ -4025,7 +4024,7 @@ async function runOsmPlaceSearch() {
 
   try {
     const url = `${NOMINATIM}/search?format=json&q=${encodeURIComponent(val + ', Legazpi Albay Philippines')}&limit=8&addressdetails=1&namedetails=1&countrycodes=ph&viewbox=123.5,13.0,123.9,13.4&bounded=0`;
-    const res = await fetch(CORS_PROXY + encodeURIComponent(url), NOMINATIM_OPTS);
+    const res = await fetch(url, NOMINATIM_OPTS);
     const places = await res.json();
 
     btn.disabled = false;
