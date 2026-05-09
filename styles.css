@@ -1908,8 +1908,17 @@ body.viewer-mode #role-badge {
   background: #fff; padding: 12px; border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.12);
   display: flex; align-items: center; justify-content: center;
+  position: relative;
 }
 #qr-container canvas, #qr-container img { display: block; }
+.qr-logo-overlay {
+  position: absolute;
+  width: 44px; height: 44px;
+  border-radius: 8px;
+  border: 3px solid #fff;
+  object-fit: contain;
+  pointer-events: none;
+}
 
 .qr-route-id {
   margin-top: 10px; font-size: 0.68rem; color: var(--outline);
