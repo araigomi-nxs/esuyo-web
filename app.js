@@ -2291,6 +2291,72 @@ function hideRouteDetail() {
   renderRouteList(document.getElementById('route-search').value);
 }
 
+// ── QR Code ───────────────────────────────────────
+function showQrModal(routeId) {
+  const route = routes.find(r => r.id === routeId);
+  if (!route) return;
+
+  document.getElementById('qr-route-dot').style.background = route.color;
+  document.getElementById('qr-route-name').textContent = route.name;
+  document.getElementById('qr-route-type').textContent = route.vehicle_type
+    ? (FARE_MATRIX[route.vehicle_type]?.fullLabel || route.vehicle_type) : '';
+  document.getElementById('qr-route-id').textContent = route.id;
+
+  const status = document.getElementById('qr-save-status');
+  status.className = 'qr-save-status hidden';
+  const saveBtn = document.getElementById('qr-btn-save');
+  saveBtn.disabled = false;
+  saveBtn.textContent = '☁ Save to DB';
+
+  const canvas = document.getElementById('qr-canvas');
+  QRCode.toCanvas(canvas, route.id, {
+    width: 240,
+    margin: 2,
+    color: { dark: '#0F172A', light: '#FFFFFF' }
+  });
+
+  document.getElementById('qr-modal-overlay').classList.remove('hidden');
+}
+
+function closeQrModal() {
+  document.getElementById('qr-modal-overlay').classList.add('hidden');
+}
+
+function downloadQr() {
+  const canvas = document.getElementById('qr-canvas');
+  const route = routes.find(r => r.id === activeRouteId);
+  const name = (route?.name || 'route').replace(/\s+/g, '-').toLowerCase();
+  const link = document.createElement('a');
+  link.download = `esuyo-qr-${name}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+async function saveQrToDb() {
+  const route = routes.find(r => r.id === activeRouteId);
+  if (!route) return;
+  const btn = document.getElementById('qr-btn-save');
+  const status = document.getElementById('qr-save-status');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    const { error } = await _supabase.from('jeepney_qr_tokens').upsert({
+      token: route.id,
+      active: true,
+      metadata: { route_name: route.name, route_id: route.id }
+    }, { onConflict: 'token' });
+    if (error) throw error;
+    status.textContent = '✓ Saved to database';
+    status.className = 'qr-save-status qr-status-ok';
+    btn.textContent = '✓ Saved';
+  } catch (e) {
+    status.textContent = `Error: ${e.message}`;
+    status.className = 'qr-save-status qr-status-err';
+    btn.disabled = false;
+    btn.textContent = '☁ Save to DB';
+  }
+}
+
 // ── Builder ───────────────────────────────────────
 function openBuilder(routeId = null) {
   editingRouteId = routeId;
@@ -3357,7 +3423,7 @@ function _drawRidePathAlongRoute() {
     : `₱${fare.toFixed(2)}`;
   document.getElementById('ride-fare-val').innerHTML = fareDisplay;
 
-  // Draw yellow path
+  // Draw yellow path with enhanced visibility
   const geoLine = { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } };
   try { map.removeLayer('ride-ab-glow'); } catch {}
   try { map.removeLayer('ride-ab-line'); } catch {}
@@ -3365,11 +3431,11 @@ function _drawRidePathAlongRoute() {
   map.addSource('ride-ab-src', { type: 'geojson', data: geoLine });
   map.addLayer({ id: 'ride-ab-glow', type: 'line', source: 'ride-ab-src',
     layout: { 'line-join': 'round', 'line-cap': 'round' },
-    paint: { 'line-color': '#FACC15', 'line-width': 10, 'line-opacity': 0.5, 'line-blur': 3 }
+    paint: { 'line-color': '#FACC15', 'line-width': 12, 'line-opacity': 0.6, 'line-blur': 4 }
   });
   map.addLayer({ id: 'ride-ab-line', type: 'line', source: 'ride-ab-src',
     layout: { 'line-join': 'round', 'line-cap': 'round' },
-    paint: { 'line-color': '#FACC15', 'line-width': 4, 'line-opacity': 1 }
+    paint: { 'line-color': '#FACC15', 'line-width': 5, 'line-opacity': 1 }
   });
 }
 
@@ -3707,6 +3773,11 @@ function bindEvents() {
   document.getElementById('btn-ride-from-route').addEventListener('click', () => { if (activeRouteId) enterRideMode(); });
   document.getElementById('btn-simulate-route').addEventListener('click', () => { if (activeRouteId) startSimulation(activeRouteId); });
   document.getElementById('btn-delete-detail').addEventListener('click', () => { if (activeRouteId) confirmDelete(activeRouteId); });
+  document.getElementById('btn-gen-qr').addEventListener('click', () => { if (activeRouteId) showQrModal(activeRouteId); });
+  document.getElementById('qr-modal-close').addEventListener('click', closeQrModal);
+  document.getElementById('qr-modal-overlay').addEventListener('click', e => { if (e.target.id === 'qr-modal-overlay') closeQrModal(); });
+  document.getElementById('qr-btn-download').addEventListener('click', downloadQr);
+  document.getElementById('qr-btn-save').addEventListener('click', saveQrToDb);
   document.getElementById('sim-end-btn').addEventListener('click', stopSimulation);
   document.getElementById('sim-play-pause').addEventListener('click', _simTogglePause);
   document.getElementById('sim-slower').addEventListener('click', () => _simChangeSpeed(-1));

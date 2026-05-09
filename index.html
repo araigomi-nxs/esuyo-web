@@ -32,6 +32,7 @@
   <!-- All scripts deferred: download in parallel with HTML parse, execute in order after -->
   <script defer src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
   <script defer src="config.js"></script>
   <script defer src="app.js"></script>
 
@@ -227,6 +228,7 @@
         <button class="btn-edit-route admin-only" id="btn-edit-route">✎ Edit</button>
         <button class="btn-ride-from-route" id="btn-ride-from-route">🚐 Calculate Fare</button>
         <button class="btn-simulate-route" id="btn-simulate-route">▶ Simulate</button>
+        <button class="btn-gen-qr admin-only" id="btn-gen-qr">⬛ QR Code</button>
         <button class="btn-delete-route admin-only" id="btn-delete-detail">🗑 Delete</button>
       </div>
     </div>
@@ -484,7 +486,33 @@
     </div>
   </div>
 
-<!-- Delete Modal -->
+<!-- QR Modal -->
+  <div id="qr-modal-overlay" class="hidden">
+    <div class="qr-modal">
+      <div class="qr-modal-header">
+        <div class="qr-modal-route-info">
+          <div class="qr-route-dot" id="qr-route-dot"></div>
+          <div>
+            <div class="qr-route-name" id="qr-route-name"></div>
+            <div class="qr-route-type" id="qr-route-type"></div>
+          </div>
+        </div>
+        <button class="btn-icon" id="qr-modal-close">✕</button>
+      </div>
+      <div class="qr-canvas-wrap">
+        <canvas id="qr-canvas"></canvas>
+      </div>
+      <div class="qr-route-id" id="qr-route-id"></div>
+      <div class="qr-hint">Screenshot or print this QR for jeepney use</div>
+      <div class="qr-modal-actions">
+        <button class="qr-btn-download" id="qr-btn-download">⬇ Download PNG</button>
+        <button class="qr-btn-save admin-only" id="qr-btn-save">☁ Save to DB</button>
+      </div>
+      <div class="qr-save-status hidden" id="qr-save-status"></div>
+    </div>
+  </div>
+
+  <!-- Delete Modal -->
   <div id="modal-overlay" class="hidden">
     <div class="modal">
       <h3 id="modal-title">Delete Route?</h3>

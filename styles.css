@@ -1695,10 +1695,10 @@ body.viewer-mode #role-badge {
 .ride-slider::-moz-range-thumb { width: 20px; height: 20px; background: #FACC15; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.3); cursor: grab; }
 .ride-slider-stops { display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--outline); margin-top: 4px; }
 .ride-map-marker {
-  width: 26px; height: 26px; border-radius: 50% 50% 50% 0;
+  width: 32px; height: 32px; border-radius: 50% 50% 50% 0;
   display: flex; align-items: center; justify-content: center;
-  border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.35);
-  font-weight: 800; font-size: 11px; color: #fff;
+  border: 2.5px solid #fff; box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+  font-weight: 900; font-size: 12px; color: #fff;
   transform: rotate(-45deg); transform-origin: bottom left;
 }
 .ride-map-marker span { transform: rotate(45deg); display: block; }
@@ -1856,3 +1856,96 @@ body.viewer-mode #role-badge {
 .reposition-marker.map-active {
   animation: orb-jump 1.2s ease-out infinite;
 }
+
+/* ── QR Code Button ──────────────────────────── */
+.btn-gen-qr {
+  flex: 1; padding: 9px; border-radius: var(--radius-sm);
+  background: rgba(96,165,250,0.08); border: 1.5px solid rgba(96,165,250,0.25);
+  color: #60a5fa; font-size: 0.84rem; font-weight: 600;
+  cursor: pointer; transition: all var(--ease);
+}
+.btn-gen-qr:hover { background: rgba(96,165,250,0.16); }
+
+/* ── QR Modal ────────────────────────────────── */
+#qr-modal-overlay {
+  position: fixed; inset: 0; z-index: 600;
+  background: rgba(0,0,0,0.55); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+}
+#qr-modal-overlay.hidden { display: none; }
+
+.qr-modal {
+  background: var(--surface); border-radius: 20px;
+  padding: 28px 28px 24px; width: 320px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+  border: 1px solid var(--surface-high);
+  animation: authIn 0.22s cubic-bezier(0.2,0,0,1);
+  display: flex; flex-direction: column; align-items: center;
+}
+
+.qr-modal-header {
+  width: 100%; display: flex; align-items: center;
+  justify-content: space-between; margin-bottom: 20px;
+}
+
+.qr-modal-route-info { display: flex; align-items: center; gap: 10px; }
+
+.qr-route-dot {
+  width: 28px; height: 28px; border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.qr-route-name {
+  font-family: 'Lexend', sans-serif; font-size: 1rem;
+  font-weight: 700; color: var(--on-surface); line-height: 1.2;
+}
+
+.qr-route-type {
+  font-size: 0.75rem; color: var(--outline); margin-top: 1px;
+}
+
+.qr-canvas-wrap {
+  background: #fff; padding: 12px; border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  display: flex; align-items: center; justify-content: center;
+}
+
+.qr-route-id {
+  margin-top: 10px; font-size: 0.68rem; color: var(--outline);
+  font-family: monospace; word-break: break-all; text-align: center;
+  max-width: 260px; user-select: all;
+}
+
+.qr-hint {
+  font-size: 0.75rem; color: var(--outline);
+  margin-top: 6px; text-align: center;
+}
+
+.qr-modal-actions {
+  display: flex; gap: 8px; width: 100%; margin-top: 18px;
+}
+
+.qr-btn-download {
+  flex: 1; padding: 10px; border-radius: var(--radius-sm);
+  background: rgba(96,165,250,0.1); border: 1.5px solid rgba(96,165,250,0.3);
+  color: #60a5fa; font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; transition: all var(--ease); font-family: inherit;
+}
+.qr-btn-download:hover { background: rgba(96,165,250,0.18); }
+
+.qr-btn-save {
+  flex: 1; padding: 10px; border-radius: var(--radius-sm);
+  background: var(--primary-container); border: none;
+  color: #fff; font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; transition: all var(--ease); font-family: inherit;
+}
+.qr-btn-save:hover { opacity: 0.88; }
+.qr-btn-save:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.qr-save-status {
+  margin-top: 10px; font-size: 0.78rem; font-weight: 600;
+  text-align: center; width: 100%;
+}
+.qr-save-status.hidden { display: none; }
+.qr-save-status.qr-status-ok { color: #22c55e; }
+.qr-save-status.qr-status-err { color: var(--error); }
