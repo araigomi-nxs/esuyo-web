@@ -2338,30 +2338,6 @@ function downloadQr() {
   link.click();
 }
 
-async function saveQrToDb() {
-  const route = routes.find(r => r.id === activeRouteId);
-  if (!route) return;
-  const btn = document.getElementById('qr-btn-save');
-  const status = document.getElementById('qr-save-status');
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
-  try {
-    const { error } = await _supabase.from('jeepney_qr_tokens').upsert({
-      token: route.id,
-      active: true,
-      metadata: { route_name: route.name, route_id: route.id }
-    }, { onConflict: 'token' });
-    if (error) throw error;
-    status.textContent = '✓ Saved to database';
-    status.className = 'qr-save-status qr-status-ok';
-    btn.textContent = '✓ Saved';
-  } catch (e) {
-    status.textContent = `Error: ${e.message}`;
-    status.className = 'qr-save-status qr-status-err';
-    btn.disabled = false;
-    btn.textContent = '☁ Save to DB';
-  }
-}
 
 // ── Builder ───────────────────────────────────────
 function openBuilder(routeId = null) {
@@ -3783,7 +3759,6 @@ function bindEvents() {
   document.getElementById('qr-modal-close').addEventListener('click', closeQrModal);
   document.getElementById('qr-modal-overlay').addEventListener('click', e => { if (e.target.id === 'qr-modal-overlay') closeQrModal(); });
   document.getElementById('qr-btn-download').addEventListener('click', downloadQr);
-  document.getElementById('qr-btn-save').addEventListener('click', saveQrToDb);
   document.getElementById('sim-end-btn').addEventListener('click', stopSimulation);
   document.getElementById('sim-play-pause').addEventListener('click', _simTogglePause);
   document.getElementById('sim-slower').addEventListener('click', () => _simChangeSpeed(-1));

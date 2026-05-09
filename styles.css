@@ -1934,19 +1934,3 @@ body.viewer-mode #role-badge {
 }
 .qr-btn-download:hover { background: rgba(96,165,250,0.18); }
 
-.qr-btn-save {
-  flex: 1; padding: 10px; border-radius: var(--radius-sm);
-  background: var(--primary-container); border: none;
-  color: #fff; font-size: 0.85rem; font-weight: 600;
-  cursor: pointer; transition: all var(--ease); font-family: inherit;
-}
-.qr-btn-save:hover { opacity: 0.88; }
-.qr-btn-save:disabled { opacity: 0.55; cursor: not-allowed; }
-
-.qr-save-status {
-  margin-top: 10px; font-size: 0.78rem; font-weight: 600;
-  text-align: center; width: 100%;
-}
-.qr-save-status.hidden { display: none; }
-.qr-save-status.qr-status-ok { color: #22c55e; }
-.qr-save-status.qr-status-err { color: var(--error); }
