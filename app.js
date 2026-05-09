@@ -14,6 +14,10 @@ function _applyRole(role) {
   document.body.classList.toggle('admin-mode',  role === 'admin');
   const badge = document.getElementById('role-badge');
   if (badge) badge.textContent = role === 'admin' ? 'ADMIN' : 'VIEWER';
+  const saveBtn = document.getElementById('ps-save');
+  if (saveBtn) saveBtn.textContent = role === 'admin' ? 'Save to Map' : 'Submit';
+  const saveRouteBtn = document.getElementById('btn-save-route');
+  if (saveRouteBtn) saveRouteBtn.textContent = role === 'admin' ? 'Save Route' : 'Submit';
 }
 
 function initAuth() {
@@ -712,6 +716,7 @@ async function saveLandmarkToDB(landmark) {
     category: landmark.category,
     address: landmark.address || null,
     google_place_id: landmark.google_place_id || null,
+    status: isAdmin() ? 'approved' : 'pending',
   };
   const { error } = landmark.google_place_id
     ? await _supabase.from('landmarks').upsert(payload, { onConflict: 'google_place_id' })
@@ -2878,12 +2883,23 @@ async function saveRoute() {
     frequency: document.getElementById('route-freq-input').value,
     description: document.getElementById('route-desc-input').value.trim(),
     vehicle_type: document.getElementById('route-vehicle-input').value,
-    stops: draftStops.map(s => ({ ...s }))
+    stops: draftStops.map(s => ({ ...s })),
+    status: isAdmin() ? 'approved' : 'pending',
   };
 
   if (_supabase) {
     const { error } = await _supabase.from('routes').upsert(routeObj, { onConflict: 'id' });
-    if (error) { console.error('Route save error:', error); alert('Failed to save route: ' + error.message); btn.disabled = false; btn.textContent = 'Save Route'; return; }
+    if (error) { console.error('Route save error:', error); alert('Failed to save route: ' + error.message); btn.disabled = false; btn.textContent = isAdmin() ? 'Save Route' : 'Submit'; return; }
+  }
+
+  const isNew = !editingRouteId;
+  btn.disabled = false;
+
+  if (!isAdmin()) {
+    btn.textContent = '✓ Submitted for approval';
+    setTimeout(() => { btn.textContent = 'Submit'; }, 2500);
+    closeBuilder();
+    return;
   }
 
   if (editingRouteId) {
@@ -2892,9 +2908,8 @@ async function saveRoute() {
     routes.push(routeObj);
   }
 
-  const isNew = !editingRouteId;
+  btn.textContent = 'Save Route';
   saveRoutes();
-  btn.disabled = false; btn.textContent = 'Save Route';
   closeBuilder();
   renderAllRoutesOnMap();
   renderRouteList();
@@ -4104,14 +4119,14 @@ async function savePlaceToMap() {
   btn.disabled = false;
 
   if (ok) {
-    btn.textContent = '✓ Saved';
-    setTimeout(() => { btn.textContent = 'Save to Map'; }, 2000);
+    btn.textContent = isAdmin() ? '✓ Saved' : '✓ Submitted for approval';
+    setTimeout(() => { btn.textContent = 'Save to Map'; }, 2500);
     if (previewMarker) { previewMarker.remove(); previewMarker = null; }
     previewPlace = null;
     document.getElementById('ps-preview').classList.add('hidden');
-    if (!landmarksVisible) toggleLandmarks();
+    if (isAdmin() && !landmarksVisible) toggleLandmarks();
   } else {
-    btn.textContent = 'Save to Map';
+    btn.textContent = isAdmin() ? 'Save to Map' : 'Submit';
   }
 }
 
