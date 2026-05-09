@@ -2308,11 +2308,15 @@ function showQrModal(routeId) {
   saveBtn.disabled = false;
   saveBtn.textContent = '☁ Save to DB';
 
-  const canvas = document.getElementById('qr-canvas');
-  QRCode.toCanvas(canvas, route.id, {
+  const container = document.getElementById('qr-container');
+  container.innerHTML = '';
+  new QRCode(container, {
+    text: route.id,
     width: 240,
-    margin: 2,
-    color: { dark: '#0F172A', light: '#FFFFFF' }
+    height: 240,
+    colorDark: '#0F172A',
+    colorLight: '#FFFFFF',
+    correctLevel: QRCode.CorrectLevel.H
   });
 
   document.getElementById('qr-modal-overlay').classList.remove('hidden');
@@ -2323,7 +2327,9 @@ function closeQrModal() {
 }
 
 function downloadQr() {
-  const canvas = document.getElementById('qr-canvas');
+  const container = document.getElementById('qr-container');
+  const canvas = container.querySelector('canvas');
+  if (!canvas) return;
   const route = routes.find(r => r.id === activeRouteId);
   const name = (route?.name || 'route').replace(/\s+/g, '-').toLowerCase();
   const link = document.createElement('a');
