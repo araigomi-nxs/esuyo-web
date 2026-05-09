@@ -2302,12 +2302,6 @@ function showQrModal(routeId) {
     ? (FARE_MATRIX[route.vehicle_type]?.fullLabel || route.vehicle_type) : '';
   document.getElementById('qr-route-id').textContent = route.id;
 
-  const status = document.getElementById('qr-save-status');
-  status.className = 'qr-save-status hidden';
-  const saveBtn = document.getElementById('qr-btn-save');
-  saveBtn.disabled = false;
-  saveBtn.textContent = '☁ Save to DB';
-
   const container = document.getElementById('qr-container');
   container.innerHTML = '';
   new QRCode(container, {
