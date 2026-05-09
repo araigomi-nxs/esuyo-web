@@ -1727,7 +1727,8 @@ body.viewer-mode #role-badge {
   .header-location,
   .fare-era-wrap,
   .status-badge,
-  #btn-export { display: none; }
+  #btn-export,
+  .header-right { display: none; }
   .logo-text { font-size: 1.15rem; }
   .badge.admin { display: none; }
   .header-btn { padding: 8px 10px; font-size: 0.75rem; min-height: 40px; }
