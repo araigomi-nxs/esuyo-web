@@ -11,7 +11,7 @@ function isAdmin() { return _userRole === 'admin'; }
 function _applyRole(role) {
   _userRole = role;
   document.body.classList.toggle('viewer-mode', role === 'viewer');
-  document.body.classList.toggle('admin-mode',  role === 'admin');
+  document.body.classList.toggle('admin-mode', role === 'admin');
   const badge = document.getElementById('role-badge');
   if (badge) badge.textContent = role === 'admin' ? 'ADMIN' : 'VIEWER';
   const saveBtn = document.getElementById('ps-save');
@@ -137,8 +137,13 @@ function initFareMatrixTooltip() {
 // ── State ────────────────────────────────────────
 let map = null;
 let routes = [];
+let _mapReady = false;
+let _dataReady = false;
 let activeRouteId = null;
 let filterTown = '';
+let _selectedPlaceKey = null; // "lat,lng" of currently selected landmark
+let _walkPathRouteId = null;
+let _walkMarkers = [];
 let filterBarangay = '';
 let filterVehicle = '';
 let _areaIndex = {};
@@ -147,6 +152,8 @@ let _dropPinMode = false;
 let editingRouteId = null;
 let isSnapping = false; // still used to block map clicks during async stop placement
 let activePopup = null;
+let routeLayers = {};
+let routeSources = {};
 
 // Each stop: { name, lat, lng, address, roadDistFromPrev, roadPathFromPrev[] }
 let draftStops = [];
@@ -284,52 +291,58 @@ async function getAddressFromCoords(lat, lng) {
     if (localBrgy) parts.push(`Brgy. ${localBrgy}`);
 
     return parts.join(', ');
-  } catch {}
-  return '';
+  } catch {
+    return '';
+  }
 }
 
-let routeLayers = {};
-let routeSources = {};
-let mapClickHandler = null;
+function _mswSetToggle(id, on) {
+  const el = document.getElementById(id);
+  if (el) el.checked = on;
+}
 
-// ── Init ─────────────────────────────────────────
-let _googlePlacesInitialized = false;
+function _onBothReady() {
+  try { addBarangayLayers(); } catch {}
+  renderAllRoutesOnMap();
+  renderRouteList();
+  updateRouteCount();
+}
 
-function _initGooglePlaces() {
-  if (_googlePlacesInitialized) return;
-  _googlePlacesInitialized = true;
-  
-  const key = window.ESUYO_CONFIG?.GOOGLE_PLACES_API_KEY;
-  if (!key || key.startsWith('your-')) {
-    document.getElementById('ps-mode-google')?.style.setProperty('display', 'none');
-    return;
-  }
-  ((g)=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await(a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n));})({ key, v: 'weekly' });
-  google.maps.importLibrary('places').then(() => { window.googlePlacesReady = true; });
+function showWelcome() {
+  if (localStorage.getItem('esuyo_welcome_seen')) return;
+  const overlay = document.getElementById('welcome-overlay');
+  overlay.classList.remove('hidden');
+  document.getElementById('welcome-ok').addEventListener('click', () => {
+    overlay.classList.add('hidden');
+    localStorage.setItem('esuyo_welcome_seen', '1');
+  }, { once: true });
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Initialize device optimizations first
   await initDeviceOptimizations();
-  
   await initAuth();
+  showWelcome();
   initSupabase();
-  
-  // Parallelize non-blocking data loads
-  const [barangaysLoaded, routesLoaded] = await Promise.all([
-    loadBarangays().catch(() => console.warn('Barangay load failed')),
-    loadRoutes().catch(() => console.warn('Routes load failed'))
-  ]);
-  
+
+  // Start the map immediately — don't block on network data
   initMap();
   initAreaFilter();
   initVehicleFilter();
+  initFindTabs();
   bindEvents();
   initFareMatrixTooltip();
-  initMobileSidebarCollapse(); // Collapse sidebar on mobile by default
-  
-  // Defer Google Places init until builder is opened (lazy load)
+  initMobileSidebarCollapse();
   trackPageView();
+
+  // Load data in parallel in the background
+  await Promise.all([
+    loadBarangays().catch(() => console.warn('Barangay load failed')),
+    loadRoutes().catch(() => console.warn('Routes load failed'))
+  ]);
+
+  buildAreaIndex();
+  _dataReady = true;
+  if (_mapReady) _onBothReady();
 });
 
 // ── Persistence ──────────────────────────────────
@@ -373,21 +386,19 @@ function initMap() {
   map.on('load', () => {
     try {
       addTerrain();
-      addBarangayLayers();
       add3DBuildings();
       addGreenery();
       if (currentMapStyle === STYLE_CARTO) applyCartoGreen();
       addLandmarks();
       initLandmarkFilter();
-      renderAllRoutesOnMap();
-      renderRouteList();
-      updateRouteCount();
       fetchLandmarksFromDB(); // async — updates layer when Supabase responds
     } catch (e) {
       console.error('Map load error:', e);
     } finally {
       setTimeout(() => document.getElementById('loading-screen').classList.add('hidden'), 700);
     }
+    _mapReady = true;
+    if (_dataReady) _onBothReady();
 
     // Click outside route/landmark to close detail and popups
     map.on('click', (e) => {
@@ -729,10 +740,43 @@ function getAllLandmarks() {
 }
 
 
+function _landmarkMatchesAreaFilter(l) {
+  if (!filterTown && !filterBarangay) return true;
+  const feat = getBrgyFeatureFromCoords(l.lng, l.lat);
+  if (!feat) return false;
+  if (filterBarangay) return feat.properties.name === filterBarangay;
+  return feat.properties.city === filterTown;
+}
+
+function getBoundsForArea(town, barangay) {
+  if (!legazpiBarangays) return null;
+  const features = legazpiBarangays.features.filter(f =>
+    barangay ? f.properties.name === barangay : f.properties.city === town
+  );
+  if (!features.length) return null;
+  let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+  features.forEach(feat => {
+    const polys = feat.geometry.type === 'MultiPolygon' ? feat.geometry.coordinates : [feat.geometry.coordinates];
+    polys.forEach(poly => poly.forEach(ring => ring.forEach(([lng, lat]) => {
+      if (lng < minLng) minLng = lng; if (lng > maxLng) maxLng = lng;
+      if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+    })));
+  });
+  return [[minLng, minLat], [maxLng, maxLat]];
+}
+
+function flyToAreaFilter() {
+  if (!filterTown && !filterBarangay) return;
+  const bounds = getBoundsForArea(filterTown, filterBarangay);
+  if (bounds) map.fitBounds(bounds, { padding: 40, maxZoom: 15, duration: 700 });
+}
+
 function refreshLandmarksLayer() {
   const src = map?.getSource('landmarks');
   if (!src) return;
-  const visible = getAllLandmarks().filter(l => !hiddenLandmarkCategories.has(l.category || 'landmark'));
+  const visible = getAllLandmarks().filter(l =>
+    !hiddenLandmarkCategories.has(l.category || 'landmark') && _landmarkMatchesAreaFilter(l)
+  );
   src.setData({
     type: 'FeatureCollection',
     features: visible.map(l => ({
@@ -879,7 +923,7 @@ function cancelReposition() {
   try { map.setLayoutProperty('landmarks-circle', 'visibility', vis); } catch {}
   try { map.setLayoutProperty('landmarks-icon', 'visibility', vis); } catch {}
   try { map.setLayoutProperty('landmarks-label', 'visibility', vis); } catch {}
-  _brandMarkers.forEach(m => { m.getElement().style.display = landmarksVisible ? '' : 'none'; });
+  _updateBrandMarkerScale();
 }
 
 window.startReposition = startReposition;
@@ -1066,7 +1110,7 @@ function toggleBarangays() {
   ['brgy-fill', 'brgy-fill-selected', 'brgy-line-selected', 'brgy-glow-outer', 'brgy-glow-inner', 'brgy-line', 'brgy-label'].forEach(id => {
     try { map.setLayoutProperty(id, 'visibility', vis); } catch {}
   });
-  document.getElementById('btn-barangays').classList.toggle('active', barangaysVisible);
+  _mswSetToggle('toggle-barangays', barangaysVisible);
 
   if (!barangaysVisible) {
     clearBarangaySelection();
@@ -1144,7 +1188,7 @@ const LANDMARK_ICONS = {
   mall: '🛍️', hospital: '🏥', school: '🏫', church: '⛪',
   gov: '🏛️', terminal: '🚌', airport: '✈️', port: '⚓',
   bank: '🏦', market: '🛒', park: '🌳', landmark: '📍',
-  '711': '7', '7eleven': '7',
+  '711': '🏪', '7eleven': '🏪',
   factory: '🏭', gasstation: '⛽',
   fastfood: '🍔', restaurant: '🍽️',
   cafe: '☕', accommodation: '🛏️', viewpoint: '📸'
@@ -1159,7 +1203,7 @@ function toggleLandmarks() {
   try { map.setLayoutProperty('landmarks-circle', 'visibility', vis); } catch {}
   try { map.setLayoutProperty('landmarks-icon', 'visibility', vis); } catch {}
   try { map.setLayoutProperty('landmarks-label', 'visibility', vis); } catch {}
-  _brandMarkers.forEach(m => { m.getElement().style.display = landmarksVisible ? '' : 'none'; });
+  _updateBrandMarkerScale();
   document.getElementById('btn-landmarks').classList.toggle('active', landmarksVisible);
 }
 
@@ -1175,12 +1219,46 @@ const LF_LABELS = {
   cafe: 'Cafe', accommodation: 'Accommodation', viewpoint: 'Viewpoint'
 };
 
+function _updateFilterBadge() {
+  const badge = document.getElementById('lf-filter-badge');
+  if (!badge) return;
+  const activeHidden = [...hiddenLandmarkCategories].filter(c => c !== '711').length;
+  if (activeHidden > 0) {
+    badge.textContent = activeHidden;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+let _filterSnapshot = null;
+
+function openLandmarkFilterModal() {
+  _filterSnapshot = new Set(hiddenLandmarkCategories);
+  document.getElementById('lf-modal-overlay').classList.remove('hidden');
+}
+
+function closeLandmarkFilterModal(apply) {
+  if (!apply && _filterSnapshot !== null) {
+    hiddenLandmarkCategories = _filterSnapshot;
+    document.querySelectorAll('.lf-chip').forEach(c => {
+      c.classList.toggle('active', !hiddenLandmarkCategories.has(c.dataset.cat));
+    });
+    refreshLandmarksLayer();
+    renderBrandMarkers();
+    renderPlacesResults();
+  }
+  _filterSnapshot = null;
+  document.getElementById('lf-modal-overlay').classList.add('hidden');
+  _updateFilterBadge();
+}
+
 function initLandmarkFilter() {
   const container = document.getElementById('lf-chips');
   if (!container) return;
   container.innerHTML = '';
   Object.entries(LANDMARK_COLORS).forEach(([cat, color]) => {
-    if (cat === '711') return; // alias for 7eleven, skip duplicate
+    if (cat === '711') return;
     const label = LF_LABELS[cat] || cat;
     const icon = LANDMARK_ICONS[cat] || '📍';
     const chip = document.createElement('button');
@@ -1189,15 +1267,40 @@ function initLandmarkFilter() {
     chip.style.setProperty('--chip-color', color);
     chip.innerHTML = `<span class="lf-chip-dot"></span>${icon} ${label}`;
     chip.addEventListener('click', () => {
-      const hidden = hiddenLandmarkCategories.has(cat);
-      if (hidden) { hiddenLandmarkCategories.delete(cat); chip.classList.add('active'); }
-      else { hiddenLandmarkCategories.add(cat); chip.classList.remove('active'); }
-      if (cat === '7eleven') { // keep 711 alias in sync
-        if (!hidden) hiddenLandmarkCategories.add('711'); else hiddenLandmarkCategories.delete('711');
+      if (hiddenLandmarkCategories.has(cat)) {
+        hiddenLandmarkCategories.delete(cat);
+        if (cat === '7eleven') hiddenLandmarkCategories.delete('711');
+        chip.classList.add('active');
+      } else {
+        hiddenLandmarkCategories.add(cat);
+        if (cat === '7eleven') hiddenLandmarkCategories.add('711');
+        chip.classList.remove('active');
       }
       refreshLandmarksLayer();
+      renderBrandMarkers();
+      _updateFilterBadge();
     });
     container.appendChild(chip);
+  });
+
+  const filterBtn = document.getElementById('lf-filter-btn');
+  if (filterBtn) filterBtn.addEventListener('click', openLandmarkFilterModal);
+
+  const closeBtn = document.getElementById('lf-modal-close');
+  const cancelBtn = document.getElementById('lf-modal-cancel');
+  const applyBtn = document.getElementById('lf-modal-apply');
+  const overlay = document.getElementById('lf-modal-overlay');
+
+  if (closeBtn) closeBtn.addEventListener('click', () => closeLandmarkFilterModal(false));
+  if (cancelBtn) cancelBtn.addEventListener('click', () => closeLandmarkFilterModal(false));
+  if (applyBtn) applyBtn.addEventListener('click', () => {
+    document.getElementById('nearby-panel').classList.add('hidden');
+    document.getElementById('places-results-list').classList.remove('hidden');
+    renderPlacesResults();
+    closeLandmarkFilterModal(true);
+  });
+  if (overlay) overlay.addEventListener('click', e => {
+    if (e.target === overlay) closeLandmarkFilterModal(false);
   });
 }
 
@@ -1206,6 +1309,8 @@ function setAllLandmarkCategories(show) {
   if (!show) Object.keys(LANDMARK_COLORS).forEach(c => hiddenLandmarkCategories.add(c));
   document.querySelectorAll('.lf-chip').forEach(c => c.classList.toggle('active', show));
   refreshLandmarksLayer();
+  renderBrandMarkers();
+  _updateFilterBadge();
 }
 
 let landmarkFilterOpen = false;
@@ -1315,27 +1420,53 @@ const JOLLIBEE_LOGO_URL = 'https://play-lh.googleusercontent.com/eolrJkDuZ2_msCv
 const MCDO_LOGO_URL = 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/McDonald%27s_Golden_Arches.svg/3840px-McDonald%27s_Golden_Arches.svg.png';
 
 let _brandMarkers = [];
+let _brandZoomListenerAdded = false;
+
+function _updateBrandMarkerScale() {
+  const zoom = map.getZoom();
+  _brandMarkers.forEach(m => {
+    const el = m.getElement();
+    if (!landmarksVisible || zoom < 13) {
+      el.style.display = 'none';
+      return;
+    }
+    el.style.display = '';
+    const t = Math.min(1, (zoom - 13) / 3);
+    el.style.opacity = Math.min(1, (zoom - 13) / 1.5).toFixed(3);
+    el.style.transform = `scale(${(0.4 + t * 0.6).toFixed(3)})`;
+    el.style.transformOrigin = 'bottom center';
+  });
+}
 
 function makeBrandMarkerEl(l, brand) {
-  const logoUrl = brand === 'jollibee' ? JOLLIBEE_LOGO_URL : MCDO_LOGO_URL;
-  const accent  = brand === 'jollibee' ? '#E31837' : '#ffffff';
-  const stroke  = brand === 'jollibee' ? '#E31837' : '#dddddd';
-  // McDonald's arches need inset padding; Jollibee icon fills the circle
-  const pad = brand === 'mcdonalds' ? 4 : 0;
   const uid = (l.id || `${l.lat}${l.lng}`).toString().replace(/[^a-z0-9]/gi, '');
   const el = document.createElement('div');
-  el.style.cssText = 'width:26px;height:26px;cursor:pointer';
-  el.innerHTML = `<svg width="26" height="26" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <clipPath id="bc${uid}"><circle cx="13" cy="13" r="11"/></clipPath>
-      <filter id="bs${uid}" x="-30%" y="-30%" width="160%" height="160%">
-        <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="rgba(0,0,0,0.38)"/>
-      </filter>
-    </defs>
-    <circle cx="13" cy="13" r="11" fill="#fff" stroke="${stroke}" stroke-width="1.5" filter="url(#bs${uid})"/>
-    <image href="${logoUrl}" x="${2+pad}" y="${2+pad}" width="${22-pad*2}" height="${22-pad*2}"
-      clip-path="url(#bc${uid})" preserveAspectRatio="xMidYMid meet"/>
-  </svg>`;
+  el.style.cssText = 'width:20px;height:20px;cursor:pointer';
+  if (brand === 'jollibee') {
+    el.innerHTML = `<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="bs${uid}" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.38)"/>
+        </filter>
+      </defs>
+      <circle cx="10" cy="10" r="8" fill="#E31837" stroke="#E31837" stroke-width="1.5" filter="url(#bs${uid})"/>
+      <text x="10" y="10" text-anchor="middle" dominant-baseline="central"
+        font-size="11" font-weight="bold" font-family="Arial,sans-serif" fill="#fff">J</text>
+    </svg>`;
+  } else {
+    const pad = 4;
+    el.innerHTML = `<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <clipPath id="bc${uid}"><circle cx="10" cy="10" r="8"/></clipPath>
+        <filter id="bs${uid}" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.38)"/>
+        </filter>
+      </defs>
+      <circle cx="10" cy="10" r="8" fill="#fff" stroke="#dddddd" stroke-width="1.5" filter="url(#bs${uid})"/>
+      <image href="${MCDO_LOGO_URL}" x="${1+pad}" y="${1+pad}" width="${18-pad*2}" height="${18-pad*2}"
+        clip-path="url(#bc${uid})" preserveAspectRatio="xMidYMid meet"/>
+    </svg>`;
+  }
   return el;
 }
 
@@ -1346,6 +1477,7 @@ function renderBrandMarkers() {
     const brand = getBrand(l.name);
     if (!brand) return;
     if (hiddenLandmarkCategories.has(l.category || 'fastfood')) return;
+    if (!_landmarkMatchesAreaFilter(l)) return;
     const el = makeBrandMarkerEl(l, brand);
     el.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1363,6 +1495,7 @@ function renderBrandMarkers() {
           <strong>${escHtml(l.name)}</strong>
           <span class="category">${pinIcon} ${escHtml(LF_LABELS[category] || category)}</span>
           <span class="coords">${l.lat.toFixed(4)}, ${l.lng.toFixed(4)}</span>
+          <button class="lm-walk-btn" onclick="walkToLandmark(${l.lat},${l.lng},this)">🚶 Walk</button>
           ${dbBtns}
         </div>`)
         .addTo(map);
@@ -1373,12 +1506,80 @@ function renderBrandMarkers() {
       .addTo(map);
     _brandMarkers.push(marker);
   });
+  _updateBrandMarkerScale();
+  if (!_brandZoomListenerAdded) {
+    map.on('zoom', _updateBrandMarkerScale);
+    _brandZoomListenerAdded = true;
+  }
+}
+
+const LANDMARK_ICON_DATA = {
+  mall:          { color: '#E91E63', emoji: '🛍' },
+  hospital:      { color: '#F44336', emoji: '✚' },
+  school:        { color: '#42A5F5', emoji: '🏫' },
+  church:        { color: '#BA68C8', emoji: '⛪' },
+  gov:           { color: '#90A4AE', emoji: '🏛' },
+  terminal:      { color: '#FF9800', emoji: '🚌' },
+  airport:       { color: '#00BCD4', emoji: '✈' },
+  port:          { color: '#A1887F', emoji: '⚓' },
+  park:          { color: '#8BC34A', emoji: '🌳' },
+  bank:          { color: '#66BB6A', emoji: '🏦' },
+  market:        { color: '#FF7043', emoji: '🛒' },
+  landmark:      { color: '#9575CD', emoji: '📍' },
+  '7eleven':     { color: '#00703c', emoji: '7' },
+  '711':         { color: '#00703c', emoji: '7' },
+  factory:       { color: '#78909C', emoji: '🏭' },
+  gasstation:    { color: '#FFC107', emoji: '⛽' },
+  fastfood:      { color: '#FF7043', emoji: '🍔' },
+  restaurant:    { color: '#FF9800', emoji: '🍽' },
+  cafe:          { color: '#FF8F00', emoji: '☕' },
+  accommodation: { color: '#0288D1', emoji: '🛏' },
+  viewpoint:     { color: '#F06292', emoji: '📸' },
+  _default:      { color: '#888888', emoji: '📍' },
+};
+
+function makeLandmarkCanvasImage(emoji, color) {
+  const SIZE = 48, DPR = 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = SIZE * DPR;
+  canvas.height = SIZE * DPR;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(DPR, DPR);
+  const r = SIZE / 2;
+
+  ctx.shadowColor = 'rgba(0,0,0,0.28)';
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetY = 2;
+  ctx.beginPath();
+  ctx.arc(r, r, r - 2, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+
+  const fontSize = Math.round(SIZE * 0.44);
+  ctx.font = `${fontSize}px serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(emoji, r, r);
+
+  const raw = ctx.getImageData(0, 0, SIZE * DPR, SIZE * DPR);
+  return { width: SIZE * DPR, height: SIZE * DPR, data: new Uint8Array(raw.data.buffer) };
+}
+
+function registerLandmarkImages() {
+  Object.entries(LANDMARK_ICON_DATA).forEach(([cat, { color, emoji }]) => {
+    const id = `lm-${cat}`;
+    if (map.hasImage(id)) map.removeImage(id);
+    map.addImage(id, makeLandmarkCanvasImage(emoji, color), { pixelRatio: 2 });
+  });
 }
 
 function addLandmarks() {
   if (map.getSource('landmarks')) return;
 
   try { renderBrandMarkers(); } catch(e) { console.warn('renderBrandMarkers failed:', e); }
+  try { registerLandmarkImages(); } catch(e) { console.warn('registerLandmarkImages failed:', e); }
 
   const features = getAllLandmarks().map(l => {
     const cat = (l.category || 'landmark').trim().toLowerCase();
@@ -1398,6 +1599,7 @@ function addLandmarks() {
     map.addSource('landmarks', { type: 'geojson', data: { type: 'FeatureCollection', features } });
   } catch(e) { console.error('landmarks addSource failed:', e); return; }
 
+  // Small colored dots — visible from afar, fade out as emoji orbs take over.
   try {
     map.addLayer({
       id: 'landmarks-circle',
@@ -1405,79 +1607,55 @@ function addLandmarks() {
       source: 'landmarks',
       filter: ['==', ['get', 'brand'], ''],
       paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 4, 13, 8, 16, 12],
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 13, 2.5, 15, 3.5],
         'circle-color': ['match', ['get', 'category'],
-          'mall', '#E91E63',
-          'hospital', '#F44336',
-          'school', '#42A5F5',
-          'church', '#BA68C8',
-          'gov', '#90A4AE',
-          'terminal', '#FF9800',
-          'airport', '#00BCD4',
-          'port', '#A1887F',
-          'park', '#8BC34A',
-          'bank', '#66BB6A',
-          'market', '#FF7043',
-          'landmark', '#9575CD',
-          '7eleven', '#00703c',
-          '711', '#00703c',
-          'factory', '#78909C',
-          'gasstation', '#FFC107',
-          'fastfood', '#FF7043',
-          'restaurant', '#FF9800',
-          'cafe', '#FF8F00',
-          'accommodation', '#0288D1',
-          'viewpoint', '#F06292',
+          'mall', '#E91E63', 'hospital', '#F44336', 'school', '#42A5F5',
+          'church', '#BA68C8', 'gov', '#90A4AE', 'terminal', '#FF9800',
+          'airport', '#00BCD4', 'port', '#A1887F', 'park', '#8BC34A',
+          'bank', '#66BB6A', 'market', '#FF7043', 'landmark', '#9575CD',
+          '7eleven', '#00703c', '711', '#00703c', 'factory', '#78909C',
+          'gasstation', '#FFC107', 'fastfood', '#FF7043', 'restaurant', '#FF9800',
+          'cafe', '#FF8F00', 'accommodation', '#0288D1', 'viewpoint', '#F06292',
           '#888'
         ],
-        'circle-stroke-width': 2,
+        'circle-opacity': ['interpolate', ['linear'], ['zoom'], 13, 1, 15, 0],
+        'circle-stroke-width': 1.5,
         'circle-stroke-color': '#fff',
-        'circle-opacity': 0.9
+        'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.8, 15, 0],
       }
     });
   } catch(e) { console.error('landmarks-circle addLayer failed:', e); }
 
-  // Liberty's glyph server 404s on emoji codepoints, which stalls the source's
-  // render batch and prevents landmarks-circle from painting. Skip the emoji
-  // icon layer on Liberty; the coloured circles convey category on their own.
-  if (currentMapStyle !== STYLE_LIBERTY) {
-    try {
-      map.addLayer({
-        id: 'landmarks-icon',
-        type: 'symbol',
-        source: 'landmarks',
-        filter: ['==', ['get', 'brand'], ''],
-        layout: {
-          'text-field': ['match', ['get', 'category'],
-            '7eleven', '7',
-            '711', '7',
-            'hospital', 'H',
-            'mall', '🛍️',
-            'school', '🏫',
-            'church', '⛪',
-            'gov', '🏛️',
-            'terminal', '🚌',
-            'airport', '✈️',
-            'port', '⚓',
-            'bank', '🏦',
-            'market', '🛒',
-            'park', '🌳',
-            'landmark', '📍',
-            'factory', '🏭',
-            'gasstation', '⛽',
-            'fastfood', '🍔',
-            'restaurant', '🍽️',
-            '📍'
-          ],
-          'text-size': ['interpolate', ['linear'], ['zoom'], 10, 6, 13, 11, 16, 16],
-          'text-anchor': 'center',
-          'text-allow-overlap': true,
-          'text-ignore-placement': true,
-        },
-        paint: { 'text-color': '#fff', 'text-halo-width': 0, 'text-opacity': 0.95 }
-      });
-    } catch(e) { console.warn('landmarks-icon addLayer failed:', e); }
-  }
+  // Canvas-drawn emoji orbs — fade in when zoomed close.
+  try {
+    map.addLayer({
+      id: 'landmarks-icon',
+      type: 'symbol',
+      source: 'landmarks',
+      filter: ['==', ['get', 'brand'], ''],
+      minzoom: 13,
+      layout: {
+        'icon-image': ['match', ['get', 'category'],
+          'mall', 'lm-mall', 'hospital', 'lm-hospital', 'school', 'lm-school',
+          'church', 'lm-church', 'gov', 'lm-gov', 'terminal', 'lm-terminal',
+          'airport', 'lm-airport', 'port', 'lm-port', 'park', 'lm-park',
+          'bank', 'lm-bank', 'market', 'lm-market', 'landmark', 'lm-landmark',
+          '7eleven', 'lm-7eleven', '711', 'lm-711', 'factory', 'lm-factory',
+          'gasstation', 'lm-gasstation', 'fastfood', 'lm-fastfood',
+          'restaurant', 'lm-restaurant', 'cafe', 'lm-cafe',
+          'accommodation', 'lm-accommodation', 'viewpoint', 'lm-viewpoint',
+          'lm-_default'
+        ],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 13, 0.22, 15, 0.38, 17, 0.52, 20, 0.7],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+        'icon-anchor': 'center',
+      },
+      paint: {
+        'icon-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 14.5, 0.95]
+      }
+    });
+  } catch(e) { console.error('landmarks-icon addLayer failed:', e); }
 
   const labelFont = currentMapStyle === STYLE_LIBERTY
     ? ['Noto Sans Regular']
@@ -1489,12 +1667,12 @@ function addLandmarks() {
       type: 'symbol',
       source: 'landmarks',
       filter: ['==', ['get', 'brand'], ''],
-      minzoom: 15,
+      minzoom: 14,
       layout: {
         'visibility': landmarksVisible ? 'visible' : 'none',
         'text-field': ['get', 'name'],
         'text-size': 12,
-        'text-offset': [0, 1.5],
+        'text-offset': [0, 1.2],
         'text-anchor': 'top',
         'text-allow-overlap': false,
         'text-ignore-placement': false,
@@ -1511,37 +1689,74 @@ function addLandmarks() {
   initLandmarkEvents();
 }
 
+function getTopNearbyRoutes(lat, lng, max = 4, thresholdKm = 1.5) {
+  return routes
+    .filter(r => Array.isArray(r.stops) && r.stops.length > 0)
+    .map(r => ({
+      r,
+      dist: Math.min(...r.stops.map(s => haversine(lat, lng, s.lat, s.lng)))
+    }))
+    .filter(({ dist }) => dist <= thresholdKm)
+    .sort((a, b) => a.dist - b.dist)
+    .slice(0, max);
+}
+
 // ── Init Landmark Event Listeners ─────────────────
 // Re-attach event listeners when layers are recreated (e.g., on style change)
 function initLandmarkEvents() {
-  try {
-    map.on('click', 'landmarks-circle', (e) => {
-      if (e.features && e.features[0]) {
-        const props = e.features[0].properties;
-        const lat = parseFloat(props.lat);
-        const lng = parseFloat(props.lng);
-        const pinIcon = LANDMARK_ICONS[props.category] || '📍';
-        const category = props.category || 'landmark';
-        const dbBtns = props.dbId && isAdmin() ? `
-          <div class="lm-db-actions">
-            <button class="lm-reposition-btn" onclick="startReposition('${escHtml(props.dbId)}','${escHtml(props.name)}',${lat},${lng},'${escHtml(category)}')">Move Pin</button>
-            <button class="lm-delete-btn" onclick="deleteLandmark('${escHtml(props.dbId)}','${escHtml(props.name)}')">Remove</button>
-          </div>` : '';
-        if (activePopup) { activePopup.remove(); activePopup = null; }
-        activePopup = new maplibregl.Popup({ closeButton: false, closeOnClick: true, offset: 15 })
-          .setLngLat(e.lngLat)
-          .setHTML(`<div class="landmark-popup">
-            <strong>${escHtml(props.name)}</strong>
-            <span class="category">${pinIcon} ${escHtml(LF_LABELS[category] || category)}</span>
-            <span class="coords">${lat.toFixed(4)}, ${lng.toFixed(4)}</span>
-            ${dbBtns}
-          </div>`)
-          .addTo(map);
-        activePopup.on('close', () => { activePopup = null; });
-      }
+  function handleLandmarkClick(e) {
+    if (!e.features || !e.features[0]) return;
+    const props = e.features[0].properties;
+    const lat = parseFloat(props.lat);
+    const lng = parseFloat(props.lng);
+    const pinIcon = LANDMARK_ICONS[props.category] || '📍';
+    const category = props.category || 'landmark';
+    const dbBtns = props.dbId && isAdmin() ? `
+      <div class="lm-db-actions">
+        <button class="lm-reposition-btn" onclick="startReposition('${escHtml(props.dbId)}','${escHtml(props.name)}',${lat},${lng},'${escHtml(category)}')">Move Pin</button>
+        <button class="lm-delete-btn" onclick="deleteLandmark('${escHtml(props.dbId)}','${escHtml(props.name)}')">Remove</button>
+      </div>` : '';
+
+    const nearby = getTopNearbyRoutes(lat, lng);
+    const nearbyHtml = nearby.length
+      ? `<div class="lm-nearby">
+          <div class="lm-nearby-title">Nearby Routes</div>
+          ${nearby.map(({ r, dist }) => {
+            const distStr = dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`;
+            return `<div class="lm-nearby-item" data-rid="${escHtml(r.id)}">
+              <span class="lm-nearby-dot" style="background:${r.color || '#0046C7'}"></span>
+              <span class="lm-nearby-name">${escHtml(r.name || 'Route')}</span>
+              <span class="lm-nearby-dist">${distStr}</span>
+            </div>`;
+          }).join('')}
+        </div>`
+      : `<div class="lm-nearby"><span class="lm-nearby-none">No jeepney routes within 1.5 km</span></div>`;
+
+    if (activePopup) { activePopup.remove(); activePopup = null; }
+    activePopup = new maplibregl.Popup({ closeButton: false, closeOnClick: true, offset: 15 })
+      .setLngLat(e.lngLat)
+      .setHTML(`<div class="landmark-popup">
+        <strong>${escHtml(props.name)}</strong>
+        <span class="category">${pinIcon} ${escHtml(LF_LABELS[category] || category)}</span>
+        <span class="coords">${lat.toFixed(4)}, ${lng.toFixed(4)}</span>
+        <button class="lm-walk-btn" onclick="walkToLandmark(${lat},${lng},this)">🚶 Walk</button>
+        ${nearbyHtml}
+        ${dbBtns}
+      </div>`)
+      .addTo(map);
+    activePopup.getElement().querySelectorAll('.lm-nearby-item[data-rid]').forEach(el => {
+      el.addEventListener('click', () => { showRouteDetail(el.dataset.rid); activePopup?.remove(); });
     });
+    activePopup.on('close', () => { activePopup = null; });
+  }
+
+  try {
+    map.on('click', 'landmarks-circle', handleLandmarkClick);
     map.on('mouseenter', 'landmarks-circle', () => map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', 'landmarks-circle', () => map.getCanvas().style.cursor = '');
+    map.on('click', 'landmarks-icon', handleLandmarkClick);
+    map.on('mouseenter', 'landmarks-icon', () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', 'landmarks-icon', () => map.getCanvas().style.cursor = '');
   } catch(e) { console.warn('landmarks event handlers failed:', e); }
 }
 
@@ -1791,9 +2006,9 @@ function addRouteToMap(route) {
   map.addLayer({ id: stopsId, type: 'circle', source: stopsSrcId,
     filter: ['!=', ['get', 'isStart'], true],
     paint: {
-      'circle-radius': ['case', ['get', 'isEnd'], 7, 5],
+      'circle-radius': ['case', ['get', 'isEnd'], 5, 3.5],
       'circle-color': route.color,
-      'circle-stroke-width': 2,
+      'circle-stroke-width': 1.5,
       'circle-stroke-color': '#fff',
       'circle-opacity': 0.95
     }
@@ -2031,22 +2246,144 @@ function buildSavedRouteCoords(route) {
   return all;
 }
 
-function findNearestOnRoute(route, lat, lng) {
-  const coords = buildSavedRouteCoords(route);
-  console.log('findNearestOnRoute:', route.name, 'has', coords?.length, 'coords');
-  if (!coords?.length) return { lat, lng, dist: Infinity, idx: -1 };
-  
-  let minDist = Infinity;
-  let nearestIdx = 0;
-  let nearestPt = coords[0];
-  
-  for (let i = 0; i < coords.length; i++) {
-    const [cl, ct] = coords[i];
-    const d = haversine(lat, lng, ct, cl);
-    if (d < minDist) { minDist = d; nearestIdx = i; nearestPt = coords[i]; }
+// Mirrors mobile _findNearestRoutePoint(): finds the closest point on the route via ACTUAL ROUTED DISTANCE.
+// Instead of geometric projection, samples route stops and polyline points, calculates routed walk distance to each,
+// and returns the one with shortest walking distance via actual pedestrian network.
+async function findNearestPointForWalk(route, lat, lng) {
+  const coords = buildSavedRouteCoords(route); // [[lng, lat], ...]
+  if (!coords.length) return { lat, lng };
+
+  // Find nearest route vertex (geometric) and sample a focused window around it
+  const nv = findNearestVertex(route, lat, lng);
+  const centerIdx = nv.idx || 0;
+  const windowSize = Math.max(20, Math.floor(coords.length * 0.05)); // at least 20 points, ~5% of route
+  const start = Math.max(0, centerIdx - windowSize);
+  const end = Math.min(coords.length - 1, centerIdx + windowSize);
+
+  const candidates = [];
+  // include all stops as candidates (they may be useful)
+  for (let i = 0; i < route.stops.length; i++) {
+    candidates.push({ lat: route.stops[i].lat, lng: route.stops[i].lng, type: 'stop', index: -1 });
   }
-  
-  return { lat: nearestPt[1], lng: nearestPt[0], dist: minDist, idx: nearestIdx };
+  // include dense vertices in the focused window
+  for (let i = start; i <= end; i++) {
+    candidates.push({ lat: coords[i][1], lng: coords[i][0], type: 'polyline', index: i });
+  }
+
+  console.log(`[walk] "${route.name}" focused sampling ${candidates.length} candidates around idx=${centerIdx} (window=${windowSize})`);
+
+  // Evaluate candidates in batches against OSRM /table
+  let bestDistKm = Infinity, bestPoint = { lat, lng };
+  const MAX_BATCH = 50;
+  for (let batch = 0; batch < candidates.length; batch += MAX_BATCH) {
+    const batchCands = candidates.slice(batch, batch + MAX_BATCH);
+    const osrmCandidates = batchCands.map(c => `${c.lng},${c.lat}`).join(';');
+    try {
+      const url = `https://router.project-osrm.org/table/v1/foot/${lng},${lat};${osrmCandidates}?annotations=distance`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`OSRM table ${res.status}`);
+      const data = await res.json();
+      if (data.distances && data.distances[0]) {
+        const distances = data.distances[0].slice(1);
+        distances.forEach((distMeters, idx) => {
+          const distKm = distMeters / 1000;
+          if (distKm < bestDistKm) {
+            bestDistKm = distKm;
+            bestPoint = batchCands[idx];
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('[walk] OSRM table batch failed, using geometric fallback', e);
+      batchCands.forEach(c => {
+        const d = haversine(lat, lng, c.lat, c.lng);
+        if (d < bestDistKm) {
+          bestDistKm = d;
+          bestPoint = c;
+        }
+      });
+    }
+  }
+
+  console.log(`[walk] → best candidate (${bestPoint.type}): ${bestDistKm.toFixed(3)}km away at (${bestPoint.lat.toFixed(4)},${bestPoint.lng.toFixed(4)})`);
+  return bestPoint;
+}
+
+function findNearestOnRoute(route, lat, lng) {
+  let minDist = Infinity, bestLat = null, bestLng = null;
+
+  for (let si = 0; si < route.stops.length - 1; si++) {
+    const stopA = route.stops[si], stopB = route.stops[si + 1];
+    const path = stopB.roadPathFromPrev;
+
+    // Use only interior road coords — exclude the stop endpoints themselves
+    let interior;
+    if (path && path.length > 2) {
+      interior = path.slice(1, -1); // drop first (= stopA) and last (= stopB)
+    } else {
+      // No road data: use midpoint of the straight line between stops
+      interior = [[(stopA.lng + stopB.lng) / 2, (stopA.lat + stopB.lat) / 2]];
+    }
+
+    if (interior.length === 1) {
+      const iy = interior[0][1], ix = interior[0][0];
+      if (!route.stops.some(s => haversine(iy, ix, s.lat, s.lng) < 0.01)) {
+        const d = haversine(lat, lng, iy, ix);
+        if (d < minDist) { minDist = d; bestLat = iy; bestLng = ix; }
+      }
+      continue;
+    }
+
+    for (let i = 0; i < interior.length - 1; i++) {
+      const ax = interior[i][0], ay = interior[i][1];
+      const bx = interior[i+1][0], by = interior[i+1][1];
+      const dx = bx - ax, dy = by - ay;
+      const lenSq = dx * dx + dy * dy;
+      const t = lenSq > 0 ? Math.max(0, Math.min(1, ((lng - ax) * dx + (lat - ay) * dy) / lenSq)) : 0;
+      const cx = ax + t * dx, cy = ay + t * dy;
+      // Skip if projected foot lands within 10 m of any stop
+      if (route.stops.some(s => haversine(cy, cx, s.lat, s.lng) < 0.01)) continue;
+      const d = haversine(lat, lng, cy, cx);
+      if (d < minDist) { minDist = d; bestLat = cy; bestLng = cx; }
+    }
+  }
+
+  if (bestLat === null) {
+    // Fallback: nearest stop
+    const ns = route.stops.reduce((b, s) => { const d = haversine(lat, lng, s.lat, s.lng); return d < b.d ? { s, d } : b; }, { s: route.stops[0], d: Infinity }).s;
+    return { lat: ns.lat, lng: ns.lng, dist: Infinity };
+  }
+  return { lat: bestLat, lng: bestLng, dist: minDist };
+}
+
+// Choose the nearest actual vertex from the saved route coordinates
+function findNearestVertex(route, lat, lng) {
+  const coords = buildSavedRouteCoords(route); // [[lng, lat], ...]
+  if (!coords.length) return { lat, lng, dist: Infinity };
+  let bestIdx = 0; let bestDist = Infinity;
+  for (let i = 0; i < coords.length; i++) {
+    const cx = coords[i][0], cy = coords[i][1];
+    const d = haversine(lat, lng, cy, cx);
+    if (d < bestDist) { bestDist = d; bestIdx = i; }
+  }
+  return { lat: coords[bestIdx][1], lng: coords[bestIdx][0], dist: bestDist, idx: bestIdx };
+}
+
+// Query OSRM nearest endpoint to snap a coordinate to the routable pedestrian network
+async function osrmNearest(lng, lat) {
+  try {
+    const url = `https://router.project-osrm.org/nearest/v1/foot/${lng},${lat}?number=1`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`OSRM nearest ${res.status}`);
+    const data = await res.json();
+    const wp = data.waypoints && data.waypoints[0];
+    if (wp && wp.location && wp.location.length >= 2) {
+      return { lng: wp.location[0], lat: wp.location[1] };
+    }
+  } catch (e) {
+    console.warn('OSRM nearest failed', e);
+  }
+  return null;
 }
 
 function removeRouteFromMap(routeId) {
@@ -2104,12 +2441,18 @@ function initAreaFilter() {
     _populateBrgyDropdown();
     _syncAreaClearBtn();
     renderRouteList(document.getElementById('route-search').value);
+    refreshLandmarksLayer();
+    flyToAreaFilter();
+    renderPlacesResults();
   });
 
   document.getElementById('af-barangay').addEventListener('change', e => {
     filterBarangay = e.target.value;
     _syncAreaClearBtn();
     renderRouteList(document.getElementById('route-search').value);
+    refreshLandmarksLayer();
+    flyToAreaFilter();
+    renderPlacesResults();
   });
 
   document.getElementById('af-clear').addEventListener('click', () => {
@@ -2119,6 +2462,8 @@ function initAreaFilter() {
     _populateBrgyDropdown();
     _syncAreaClearBtn();
     renderRouteList(document.getElementById('route-search').value);
+    refreshLandmarksLayer();
+    renderPlacesResults();
   });
 }
 
@@ -2210,8 +2555,10 @@ function showRouteDetail(routeId) {
   if (!route) return;
 
   activeRouteId = routeId;
-  renderRouteList(document.getElementById('route-search').value);
-  
+  document.querySelectorAll('#route-list .route-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.id === routeId);
+  });
+
   // Hide other routes when one is selected
   hideOtherRoutes(routeId);
 
@@ -2273,11 +2620,18 @@ function showRouteDetail(routeId) {
   document.getElementById('detail-hours').textContent = route.hours || '—';
   document.getElementById('detail-frequency').textContent = route.frequency || '—';
   document.getElementById('route-detail').classList.add('visible');
+  document.getElementById('sidebar-toggle').classList.remove('visible');
+  closePlaceSearch();
+  if (DEVICE_CONFIG.isMobile()) {
+    document.getElementById('sidebar').classList.add('collapsed');
+  }
 
   if (route.stops.length >= 2) {
     const bounds = new maplibregl.LngLatBounds();
     route.stops.forEach(s => bounds.extend([s.lng, s.lat]));
-    map.fitBounds(bounds, { padding: { top: 80, bottom: 80, left: 340, right: 400 }, duration: 1200, maxZoom: 16, minZoom: 14 });
+    const vw = window.innerWidth;
+    const pad = vw < 700 ? 40 : { top: 80, bottom: 80, left: 340, right: 80 };
+    map.fitBounds(bounds, { padding: pad, duration: 1200, maxZoom: 16 });
   }
 }
 
@@ -2291,10 +2645,10 @@ function highlightStopItem(idx) {
 
 function hideRouteDetail() {
   document.getElementById('route-detail').classList.remove('visible');
+  if (DEVICE_CONFIG.isMobile()) document.getElementById('sidebar-toggle').classList.add('visible');
   activeRouteId = null;
-  // Show all routes again
   showAllRoutes();
-  renderRouteList(document.getElementById('route-search').value);
+  document.querySelectorAll('#route-list .route-item').forEach(el => el.classList.remove('active'));
 }
 
 // ── Feedback ──────────────────────────────────────
@@ -2412,6 +2766,7 @@ function initFeedbackCharCounter() {
 function initFeedbackWidget() {
   const ta = document.getElementById('fw-description');
   const counter = document.getElementById('fw-char-count');
+  if (!ta || !counter) return;
   const row = counter.closest('.fw-char-row');
   ta.addEventListener('input', () => {
     const len = ta.value.length;
@@ -2778,9 +3133,9 @@ function refreshDraftMap() {
   map.addSource('draft-stops-src', { type: 'geojson', data: _buildDraftStopsGeoJSON() });
   map.addLayer({ id: 'draft-stops-lyr', type: 'circle', source: 'draft-stops-src',
     paint: {
-      'circle-radius': ['case', ['get', 'isEnd'], 9, 7],
+      'circle-radius': ['case', ['get', 'isEnd'], 6.5, 5],
       'circle-color': color,
-      'circle-stroke-width': 2.5,
+      'circle-stroke-width': 2,
       'circle-stroke-color': '#ffffff',
     }
   });
@@ -3243,8 +3598,7 @@ function stopSimulation() {
   if (simMarker) { simMarker.remove(); simMarker = null; }
   document.getElementById('sim-panel')?.classList.add('hidden');
   simCoords = []; simCumDist = []; simTotalKm = 0; simProgress = 0; simLastTs = null;
-  showAllRoutes();
-  if (simRouteId) showRouteDetail(simRouteId); // restore detail panel
+  if (simRouteId) showRouteDetail(simRouteId); // restore detail panel (keeps other routes hidden)
   simRouteId = null;
 }
 
@@ -3385,8 +3739,6 @@ function applyWhiteTheme() {
 
 function toggleMapStyle() {
   currentMapStyle = currentMapStyle === STYLE_CARTO ? STYLE_LIBERTY : STYLE_CARTO;
-  const btn = document.getElementById('btn-map-style');
-  btn.classList.toggle('active', currentMapStyle === STYLE_LIBERTY);
 
   // Clear stale layer/source tracking so renderAllRoutesOnMap re-adds cleanly
   routeLayers = {};
@@ -3435,12 +3787,11 @@ function toggleMapStyle() {
 
 let is3D = true;
 function toggle3D() {
-  const btn = document.getElementById('btn-3d');
   is3D = !is3D;
   map.easeTo({ pitch: is3D ? 55 : 0, duration: 700 });
-  btn.classList.toggle('active', is3D);
   const vis = is3D ? 'visible' : 'none';
   if (map.getLayer('bld-3d')) map.setLayoutProperty('bld-3d', 'visibility', vis);
+  _mswSetToggle('toggle-3d-buildings', is3D);
 }
 
 let _shaderOn = false;
@@ -3482,7 +3833,7 @@ function _ensureShaderLayer() {
 
 function toggleShader() {
   _shaderOn = !_shaderOn;
-  document.getElementById('btn-shader').classList.toggle('active', _shaderOn);
+  _mswSetToggle('toggle-shader', _shaderOn);
   if (_shaderOn) {
     _ensureShaderLayer();
   } else {
@@ -3533,7 +3884,8 @@ async function _placeRideMarker(lat, lng, type) {
     const route = routes.find(r => r.id === activeRouteId);
     if (route) {
       const snap = findNearestOnRoute(route, lat, lng);
-      finalLat = snap.lat; finalLng = snap.lng; snapped = true; snapIdx = snap.idx;
+      finalLat = snap.lat; finalLng = snap.lng; snapped = true;
+      snapIdx = findNearestVertex(route, snap.lat, snap.lng).idx;
     }
   }
 
@@ -3556,10 +3908,11 @@ async function _placeRideMarker(lat, lng, type) {
         if (!r || !_rideRouteCoords.length) return;
         const ll = _ridePickupMarker.getLngLat();
         const snap = findNearestOnRoute(r, ll.lat, ll.lng);
+        const vIdx = findNearestVertex(r, snap.lat, snap.lng).idx;
         _ridePickupMarker.setLngLat([snap.lng, snap.lat]);
-        _ridePickupCoords = { lat: snap.lat, lng: snap.lng, snapped: true, snapIdx: snap.idx };
-        _rideStartIdx = snap.idx;
-        _setRideAddress('ride-pickup-addr', `Stop ${snap.idx + 1}`);
+        _ridePickupCoords = { lat: snap.lat, lng: snap.lng, snapped: true, snapIdx: vIdx };
+        _rideStartIdx = vIdx;
+        _setRideAddress('ride-pickup-addr', `Stop ${vIdx + 1}`);
         if (_rideDropoffCoords) _drawRidePathAlongRoute();
       });
       _ridePickupMarker.on('dragend', async () => {
@@ -3582,9 +3935,10 @@ async function _placeRideMarker(lat, lng, type) {
         if (!_ridePickupMarker || !r || !_rideRouteCoords.length) return;
         const ll = marker.getLngLat();
         const snap = findNearestOnRoute(r, ll.lat, ll.lng);
+        const vIdx2 = findNearestVertex(r, snap.lat, snap.lng).idx;
         marker.setLngLat([snap.lng, snap.lat]);
-        _rideDropoffCoords = { lat: snap.lat, lng: snap.lng, snapped: true, snapIdx: snap.idx };
-        _setRideAddress('ride-dropoff-addr', `Stop ${snap.idx + 1}`);
+        _rideDropoffCoords = { lat: snap.lat, lng: snap.lng, snapped: true, snapIdx: vIdx2 };
+        _setRideAddress('ride-dropoff-addr', `Stop ${vIdx2 + 1}`);
         _drawRidePathAlongRoute();
       });
     }
@@ -3900,6 +4254,7 @@ window.addEventListener('resize', () => {
     // Re-check mobile mode
     if (DEVICE_CONFIG.isMobile()) {
       document.getElementById('sidebar').classList.add('collapsed');
+      document.getElementById('sidebar-toggle').classList.add('visible');
     }
   }, 150);
 });
@@ -3948,16 +4303,341 @@ function initMobileSidebarCollapse() {
   });
 }
 
+// ── Find Tabs ──────────────────────────────────────
+function initFindTabs() {
+  document.querySelectorAll('.find-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const name = tab.dataset.tab;
+      document.querySelectorAll('.find-tab').forEach(t => t.classList.toggle('active', t === tab));
+      document.getElementById('routes-tab-filters').classList.toggle('hidden', name !== 'routes');
+      document.getElementById('places-tab-filters').classList.toggle('hidden', name !== 'places');
+      document.getElementById('routes-tab-body').classList.toggle('hidden', name !== 'routes');
+      document.getElementById('places-tab-body').classList.toggle('hidden', name !== 'places');
+      if (name === 'places') {
+        renderPlacesResults();
+        document.getElementById('places-search').focus();
+      }
+    });
+  });
+}
+
+// ── Places Tab ─────────────────────────────────────
+function renderPlacesResults() {
+  const container = document.getElementById('places-results-list');
+  const query = (document.getElementById('places-search').value || '').trim().toLowerCase();
+  const landmarks = getAllLandmarks();
+
+  const filtered = landmarks.filter(l => {
+    const cat = (l.category || 'landmark').trim().toLowerCase();
+    if (hiddenLandmarkCategories.has(cat)) return false;
+    if (filterTown || filterBarangay) {
+      const feat = getBrgyFeatureFromCoords(l.lng, l.lat);
+      if (!feat) return false;
+      if (filterBarangay && feat.properties.name !== filterBarangay) return false;
+      if (filterTown && !filterBarangay && feat.properties.city !== filterTown) return false;
+    }
+    if (!query) return true;
+    return l.name.toLowerCase().includes(query) ||
+      cat.includes(query) ||
+      (LF_LABELS[cat] || '').toLowerCase().includes(query);
+  });
+
+  if (!filtered.length) {
+    container.innerHTML = `<div class="places-empty">${query ? 'No landmarks found' : 'No landmarks loaded yet'}</div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.slice(0, 60).map(l => {
+    const cat = (l.category || 'landmark').trim().toLowerCase();
+    const icon = LANDMARK_ICON_DATA[cat]?.emoji || '📍';
+    const color = LANDMARK_ICON_DATA[cat]?.color || '#888';
+    const label = LF_LABELS[cat] || cat;
+    const addrLine = l.address ? `<div class="places-item-addr">${escHtml(l.address)}</div>` : '';
+    const coords = `${l.lat.toFixed(5)}, ${l.lng.toFixed(5)}`;
+    return `<div class="places-item" data-lat="${l.lat}" data-lng="${l.lng}" data-name="${escHtml(l.name)}" data-cat="${escHtml(cat)}">
+      <div class="places-item-icon" style="background:${color};color:#fff">${icon}</div>
+      <div class="places-item-info">
+        <div class="places-item-name">${escHtml(l.name)}</div>
+        <div class="places-item-cat">${escHtml(label)}</div>
+        ${addrLine}
+        <div class="places-item-coords">${coords}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  container.querySelectorAll('.places-item').forEach(el => {
+    const key = `${el.dataset.lat},${el.dataset.lng}`;
+    if (key === _selectedPlaceKey) el.classList.add('active');
+    el.addEventListener('click', () => selectPlaceLandmark({
+      lat: parseFloat(el.dataset.lat),
+      lng: parseFloat(el.dataset.lng),
+      name: el.dataset.name,
+      category: el.dataset.cat,
+    }));
+  });
+}
+
+const WALK_COLOR = '#0046C7';
+
+const WALK_ICON_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9 1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/></svg>`;
+
+function _makeWalkMarkerEl() {
+  const el = document.createElement('div');
+  el.className = 'walk-marker';
+  el.innerHTML = WALK_ICON_SVG;
+  return el;
+}
+
+function walkToLandmark(lat, lng, btn) {
+  const lmId = `lm-${lat}-${lng}`;
+  if (_walkPathRouteId === lmId) { clearWalkPath(); return; }
+  if (!routes.length) return;
+
+  // Find nearest route by closest vertex
+  let bestRoute = null, bestDist = Infinity, bestPoint = null;
+  for (const r of routes) {
+    if (!Array.isArray(r.stops) || r.stops.length < 2) continue;
+    const nv = findNearestVertex(r, lat, lng);
+    if (nv.dist < bestDist) { bestDist = nv.dist; bestRoute = r; bestPoint = { lat: nv.lat, lng: nv.lng }; }
+  }
+  if (!bestRoute) return;
+
+  if (activePopup) activePopup.remove();
+  drawWalkPath(lat, lng, bestPoint.lat, bestPoint.lng, lmId, btn);
+}
+
+function clearWalkPath() {
+  try { map.removeLayer('walk-path-outline'); } catch {}
+  try { map.removeLayer('walk-path'); } catch {}
+  try { map.removeSource('walk-path-src'); } catch {}
+  _walkMarkers.forEach(m => m.remove());
+  _walkMarkers = [];
+  _walkPathRouteId = null;
+  document.querySelectorAll('.nearby-route-walk-btn').forEach(b => b.classList.remove('active'));
+}
+
+async function drawWalkPath(fromLat, fromLng, toLat, toLng, routeId, btn) {
+  clearWalkPath();
+  _walkPathRouteId = routeId;
+
+  if (btn) { btn.classList.add('loading'); btn.disabled = true; }
+
+  // Snap user location to nearest routable pedestrian node
+  let snappedFrom = { lat: fromLat, lng: fromLng };
+  try {
+    const sf = await osrmNearest(fromLng, fromLat);
+    if (sf) snappedFrom = sf;
+  } catch (e) { console.warn('snapping failed', e); }
+
+  // Use the best routed point directly (found via pedestrian routing distance, not geometric)
+  let routeJoin = { lat: toLat, lng: toLng };
+  console.log('[walk-debug] snapped from:', snappedFrom, 'route target (routed nearest):', routeJoin);
+
+  // Route from snapped start to the routed nearest point on the route
+  let coords = [[snappedFrom.lng, snappedFrom.lat], [routeJoin.lng, routeJoin.lat]];
+
+  async function routeWithOSRM(from, to) {
+    const url = `https://router.project-osrm.org/route/v1/foot/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=polyline6&steps=false`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`OSRM route ${res.status}`);
+    const data = await res.json();
+    const leg = data.routes?.[0];
+    if (!leg?.geometry) throw new Error('OSRM route missing geometry');
+    return _decodePolyline6(leg.geometry);
+  }
+
+  try {
+    coords = await routeWithOSRM(snappedFrom, routeJoin);
+    console.log('[walk-debug] OSRM routed:', coords.length, 'waypoints');
+  } catch {
+    try {
+      const res = await fetch('https://valhalla1.openstreetmap.de/route', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          locations: [{ lon: snappedFrom.lng, lat: snappedFrom.lat }, { lon: routeJoin.lng, lat: routeJoin.lat }],
+          costing: 'pedestrian',
+        }),
+      });
+      const data = await res.json();
+      const leg = data.trip?.legs?.[0];
+      if (leg) {
+        coords = _decodePolyline6(leg.shape);
+        console.log('[walk-debug] Valhalla routed:', coords.length, 'waypoints');
+      }
+    } catch (e) { 
+      console.warn('[walk-debug] routing failed, using straight line', e);
+      // Fallback to straight line
+    }
+  }
+
+  // Force exact endpoints to ensure clean snap to route
+  coords[0] = [snappedFrom.lng, snappedFrom.lat];
+  coords[coords.length - 1] = [routeJoin.lng, routeJoin.lat];
+
+
+  if (btn) { btn.classList.remove('loading'); btn.disabled = false; btn.classList.add('active'); }
+  if (_walkPathRouteId !== routeId) return;
+
+  map.addSource('walk-path-src', {
+    type: 'geojson',
+    data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }
+  });
+
+  map.addLayer({
+    id: 'walk-path-outline',
+    type: 'line', source: 'walk-path-src',
+    paint: { 'line-color': '#fff', 'line-width': 10, 'line-opacity': 0.45 }
+  });
+  map.addLayer({
+    id: 'walk-path',
+    type: 'line', source: 'walk-path-src',
+    paint: { 'line-color': WALK_COLOR, 'line-width': 5.5, 'line-dasharray': [1.5, 1.8], 'line-opacity': 1 }
+  });
+
+  // Walk markers at start and end
+  const startM = new maplibregl.Marker({ element: _makeWalkMarkerEl(), anchor: 'center' })
+    .setLngLat([snappedFrom.lng || fromLng, snappedFrom.lat || fromLat]).addTo(map);
+  const endM = new maplibregl.Marker({ element: _makeWalkMarkerEl(), anchor: 'center' })
+    .setLngLat([coords[coords.length - 1][0], coords[coords.length - 1][1]]).addTo(map);
+  _walkMarkers = [startM, endM];
+
+  const lngs = coords.map(c => c[0]);
+  const lats = coords.map(c => c[1]);
+  map.fitBounds(
+    [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+    { padding: 80, maxZoom: 17, duration: 700, pitch: 0, bearing: 0 }
+  );
+}
+
+async function selectPlaceLandmark(lm) {
+  clearWalkPath();
+  _selectedPlaceKey = `${lm.lat},${lm.lng}`;
+  map.flyTo({ center: [lm.lng, lm.lat], zoom: Math.max(map.getZoom(), 15), duration: 800 });
+
+  // Highlight the selected item in the list
+  document.querySelectorAll('.places-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.lat === String(lm.lat) && el.dataset.lng === String(lm.lng));
+  });
+
+  const icon = LANDMARK_ICON_DATA[lm.category]?.emoji || '📍';
+  document.getElementById('nearby-lm-name').textContent = `${icon} ${lm.name}`;
+  document.getElementById('places-results-list').classList.add('hidden');
+  document.getElementById('nearby-panel').classList.remove('hidden');
+
+  await renderNearbyRoutes(lm);
+}
+
+async function renderNearbyRoutes(lm) {
+  const THRESHOLD_KM = 1.5;
+  const container = document.getElementById('nearby-routes-list');
+
+  const VT_LABELS = {
+    puj: '🚐 PUJ', mpuj: '🚌 MPUJ',
+    'pub-city': '🚍 PUB City', 'pub-city-ac': '🚍 PUBw/AC', 'uv-express': '🚙 UV Express',
+  };
+
+  // Pre-filter geometrically to avoid firing OSRM for every route in the dataset
+  const GEO_PREFILTER_KM = THRESHOLD_KM + 1.0; // generous buffer above the display threshold
+  const preFiltered = routes.filter(r => {
+    if (!Array.isArray(r.stops) || !r.stops.length) return false;
+    const geoDist = Math.min(...r.stops.map(s => haversine(lm.lat, lm.lng, s.lat, s.lng)));
+    return geoDist <= GEO_PREFILTER_KM;
+  });
+
+  // Async map: OSRM-evaluate only the geometrically nearby routes
+  const candidates = await Promise.all(
+    preFiltered.map(async (r) => {
+      try {
+        const nearestPoint = await findNearestPointForWalk(r, lm.lat, lm.lng);
+        const minDist = haversine(lm.lat, lm.lng, nearestPoint.lat, nearestPoint.lng);
+        return { r, minDist, nearestPoint };
+      } catch (e) {
+        console.warn('[walk] failed to find nearest point for', r.name, e);
+        return null;
+      }
+    })
+  );
+
+  const filtered = candidates
+    .filter(c => c && c.minDist <= THRESHOLD_KM)
+    .sort((a, b) => a.minDist - b.minDist);
+
+  if (!filtered.length) {
+    container.innerHTML = '<div class="nearby-empty">No jeepney routes within 1.5 km of this landmark.</div>';
+    return;
+  }
+
+  container.innerHTML = filtered.slice(0, 8).map(({ r, minDist, nearestPoint }) => {
+    const distStr = minDist < 1 ? `${Math.round(minDist * 1000)} m` : `${minDist.toFixed(1)} km`;
+    const vt = VT_LABELS[r.vehicleType] || r.vehicleType || '';
+    return `<div class="nearby-route-item">
+      <div class="nearby-route-color" style="background:${r.color || '#0046C7'}"></div>
+      <div class="nearby-route-info">
+        <div class="nearby-route-name">${escHtml(r.name || 'Unnamed Route')}</div>
+        <div class="nearby-route-meta">${escHtml(vt)} · ${distStr} away</div>
+      </div>
+      <button class="nearby-route-walk-btn" data-rid="${escHtml(r.id)}"
+        data-from-lat="${lm.lat}" data-from-lng="${lm.lng}"
+        data-to-lat="${nearestPoint.lat}" data-to-lng="${nearestPoint.lng}"
+        title="Show walk path to nearest point on the route">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9 1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/></svg>
+      </button>
+    </div>`;
+  }).join('');
+
+  container.querySelectorAll('.nearby-route-walk-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const rid = btn.dataset.rid;
+      const toLat = parseFloat(btn.dataset.toLat);
+      const toLng = parseFloat(btn.dataset.toLng);
+      console.log('[walk-debug] walk button clicked', { rid, toLat, toLng });
+      
+      // Add debug marker for the target point
+      if (map.getSource('debug-target')) map.removeSource('debug-target');
+      if (map.getLayer('debug-target-layer')) map.removeLayer('debug-target-layer');
+      map.addSource('debug-target', {
+        type: 'geojson',
+        data: { type: 'Feature', geometry: { type: 'Point', coordinates: [toLng, toLat] } }
+      });
+      map.addLayer({
+        id: 'debug-target-layer',
+        type: 'circle', source: 'debug-target',
+        paint: { 'circle-radius': 8, 'circle-color': '#FF0000', 'circle-opacity': 0.5 }
+      });
+      
+      if (_walkPathRouteId === rid) {
+        clearWalkPath();
+      } else {
+        document.querySelectorAll('.nearby-route-walk-btn').forEach(b => b.classList.remove('active'));
+        drawWalkPath(
+          parseFloat(btn.dataset.fromLat), parseFloat(btn.dataset.fromLng),
+          toLat, toLng,
+          rid, btn
+        );
+      }
+    });
+  });
+}
+
 function bindEvents() {
   document.getElementById('btn-new-route').addEventListener('click', () => openBuilder());
   document.getElementById('route-search').addEventListener('input', e => renderRouteList(e.target.value));
+  document.getElementById('places-search').addEventListener('input', () => renderPlacesResults());
+  document.getElementById('nearby-back-btn').addEventListener('click', () => {
+    clearWalkPath();
+    document.getElementById('nearby-panel').classList.add('hidden');
+    document.getElementById('places-results-list').classList.remove('hidden');
+  });
   document.getElementById('btn-sync-db').addEventListener('click', syncRoutesToDB);
   document.getElementById('btn-refresh-pins').addEventListener('click', async () => {
     const btn = document.getElementById('btn-refresh-pins');
-    btn.disabled = true; btn.textContent = '↻ Loading…';
+    btn.disabled = true;
+    btn.style.animation = 'spin 0.8s linear infinite';
     _clearLandmarkCache();
     await fetchLandmarksFromDB(true);
-    btn.disabled = false; btn.textContent = '↻ Refresh Pins';
+    btn.disabled = false;
+    btn.style.animation = '';
   });
   document.getElementById('fare-era-toggle').addEventListener('click', (e) => {
     const btn = e.target.closest('.fare-era-btn');
@@ -4055,31 +4735,46 @@ function bindEvents() {
     }
   });
 
-  document.getElementById('btn-barangays').addEventListener('click', toggleBarangays);
-  document.getElementById('btn-landmarks').addEventListener('click', toggleLandmarks);
-  document.getElementById('btn-landmark-filter').addEventListener('click', toggleLandmarkFilter);
-  document.getElementById('lf-close').addEventListener('click', toggleLandmarkFilter);
   document.getElementById('lf-show-all').addEventListener('click', () => setAllLandmarkCategories(true));
   document.getElementById('lf-hide-all').addEventListener('click', () => setAllLandmarkCategories(false));
-  document.getElementById('btn-shader').addEventListener('click', toggleShader);
-  document.getElementById('btn-map-style').addEventListener('click', toggleMapStyle);
+  document.getElementById('toggle-barangays').addEventListener('change', toggleBarangays);
+  document.getElementById('toggle-shader').addEventListener('change', toggleShader);
+  document.getElementById('toggle-3d-buildings').addEventListener('change', toggle3D);
+  document.getElementById('btn-map-settings').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('map-settings-widget').classList.toggle('hidden');
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#map-settings-widget') && !e.target.closest('#btn-map-settings')) {
+      document.getElementById('map-settings-widget').classList.add('hidden');
+    }
+  });
   document.getElementById('btn-reset').addEventListener('click', () => {
     hideRouteDetail();
     map.flyTo({ center: MAP_CENTER, zoom: INITIAL_ZOOM, pitch: INITIAL_PITCH, bearing: INITIAL_BEARING, duration: 1200 });
   });
 
-  document.getElementById('sidebar-toggle').addEventListener('click', () => {
+  const _collapseSidebar = () => {
+    const sb = document.getElementById('sidebar');
+    sb.classList.add('collapsed');
+    document.getElementById('sidebar-toggle').classList.add('visible');
+  };
+  const _toggleSidebar = () => {
     const sb = document.getElementById('sidebar');
     sb.classList.toggle('collapsed');
     document.getElementById('sidebar-toggle').classList.toggle('visible', sb.classList.contains('collapsed'));
-  });
+  };
+  document.getElementById('sidebar-toggle').addEventListener('click', _toggleSidebar);
+  document.getElementById('sidebar-collapse-btn').addEventListener('click', _toggleSidebar);
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       if (rideModeActive) { exitRideMode(); return; }
       if (_repositionId) { cancelReposition(); return; }
       if (document.getElementById('place-search-panel').classList.contains('open')) { closePlaceSearch(); return; }
-      if (builderOpen) closeBuilder(); else hideRouteDetail();
+      if (builderOpen) { closeBuilder(); return; }
+      if (!document.getElementById('sidebar').classList.contains('collapsed')) { _collapseSidebar(); return; }
+      hideRouteDetail();
     }
   });
 }
@@ -4088,6 +4783,19 @@ function bindEvents() {
 let previewMarker = null;
 let previewPlace = null;
 let _searchMode = 'google'; // 'google' | 'osm'
+
+let _googlePlacesLoading = false;
+function _initGooglePlaces() {
+  if (window.googlePlacesReady || _googlePlacesLoading || window.google?.maps) return;
+  const key = (typeof CONFIG !== 'undefined' ? CONFIG.GOOGLE_PLACES_API_KEY : '') || '';
+  if (!key) return;
+  _googlePlacesLoading = true;
+  const script = document.createElement('script');
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&loading=async`;
+  script.onload = () => { window.googlePlacesReady = true; _googlePlacesLoading = false; };
+  script.onerror = () => { _googlePlacesLoading = false; };
+  document.head.appendChild(script);
+}
 
 function openPlaceSearch() {
   _initGooglePlaces();
