@@ -374,7 +374,7 @@ function initMap() {
     container: 'map',
     style: currentMapStyle,
     center: MAP_CENTER, zoom: INITIAL_ZOOM,
-    pitch: INITIAL_PITCH, bearing: INITIAL_BEARING,
+    pitch: 0, bearing: INITIAL_BEARING,
     minPitch: 0, maxPitch: 60,
     maxZoom: 18, minZoom: 10, antialias: !DEVICE_CONFIG.isMobile(), // Disable antialiasing on mobile
     renderWorldCopies: false,
@@ -543,7 +543,6 @@ function addTerrain() {
     };
 
     map.addSource('terrain-dem', demSourceSpec);
-    map.setTerrain({ source: 'terrain-dem', exaggeration: 0.6 });
 
     map.addLayer({
       id: 'sky-layer',
@@ -3817,7 +3816,7 @@ function toggleMapStyle() {
 
 }
 
-let is3DTerrain = true;
+let is3DTerrain = false;
 function toggle3DTerrain() {
   is3DTerrain = !is3DTerrain;
   if (is3DTerrain) {
