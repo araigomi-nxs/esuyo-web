@@ -23,14 +23,14 @@
   <link rel="preconnect" href="https://api.maptiler.com" crossorigin>
 
   <!-- MapLibre CSS (non-blocking) -->
-  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+  <link href="maplibre-gl.css" rel="stylesheet">
 
   <!-- Preload critical assets -->
   <link rel="preload" href="legazpi-barangays.json" as="fetch" crossorigin>
   <link rel="preload" href="assets/esuyo_logo.png" as="image">
 
   <!-- All scripts deferred: download in parallel with HTML parse, execute in order after -->
-  <script defer src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script defer src="maplibre-gl.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script defer src="config.js"></script>
@@ -49,6 +49,20 @@
     <div class="loading-text">Initializing map...</div>
   </div>
 
+  <!-- Top notice banner -->
+  <div id="top-notice">
+    <div class="top-notice-body">
+      <span class="top-notice-icon">🚧</span>
+      <span>E-Suyo is currently in <strong>prototype phase</strong> and supports the <strong>Albay area</strong> only. Features and data may be incomplete.</span>
+      <button class="top-notice-close" id="top-notice-close">✕</button>
+    </div>
+    <div class="top-notice-actions">
+      <a href="https://docs.google.com/forms/d/e/1FAIpQLScCjI2HFS8gNdYz3bVKBsNCGSCjcWfAAVVkw0u-yM5i2FdB6Q/viewform" target="_blank" rel="noopener" class="top-notice-btn">📋 Answer Survey</a>
+      <button class="top-notice-btn" id="btn-improve-app">💡 Improve App</button>
+      <button class="top-notice-btn top-notice-btn--primary" id="btn-notice-mobile">📱 Get Mobile App</button>
+    </div>
+  </div>
+
   <!-- Header -->
   <header id="app-header">
     <div class="header-left">
@@ -57,15 +71,18 @@
         <div class="logo-text">E-SUYO <span class="badge admin" id="role-badge">ADMIN</span></div>
       </div>
       <div class="header-divider"></div>
-      <div class="header-location"><span>📍</span> Albay Commute Interactive Map</div>
+      <div class="header-location"><span>📍</span> PUV Route Interactive Map</div>
     </div>
     <div class="header-actions">
+      <button class="header-icon-btn" id="btn-get-mobile" title="Get Mobile App">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v13m0 0l-4-4m4 4l4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 17v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
       <button class="header-icon-btn" id="btn-refresh-pins" title="Reload landmarks from database">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 12a8 8 0 1 1-2.343-5.657" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><polyline points="16 7 20.657 6.343 21 11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4.5 12a7.5 7.5 0 0 1 13.18-4.89L19.5 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.5 3v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.5 12a7.5 7.5 0 0 1-13.18 4.89L4.5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 21v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <div class="header-icon-wrap">
-        <button class="header-icon-btn" id="btn-mobile-feedback" title="Submit feedback">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.9"/><path d="M3 7l9 6 9-6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <button class="header-icon-btn" id="btn-mobile-feedback" title="Submit feedback" style="font-size:15px;line-height:1;">
+          📩
         </button>
         <span class="feedback-ping" id="mobile-feedback-ping"></span>
       </div>
@@ -552,8 +569,11 @@
     <div class="feedback-modal">
       <div class="feedback-header">
         <div class="feedback-title">
-          <span class="feedback-title-icon">💬</span>
-          <h3>Submit Feedback</h3>
+          <span class="feedback-title-icon">💡</span>
+          <div>
+            <h3>Improve App</h3>
+            <div class="feedback-subtitle">Help shape the future of E-Suyo</div>
+          </div>
         </div>
         <button class="btn-icon" id="feedback-close">✕</button>
       </div>
@@ -584,6 +604,7 @@
             <option value="app_performance">⚡ App Performance</option>
             <option value="safety_concern">🚨 Safety Concern</option>
             <option value="feature_request">✨ Feature Request</option>
+            <option value="improve_app">💡 Improve App</option>
             <option value="general">💬 General Feedback</option>
           </select>
         </div>
@@ -600,11 +621,11 @@
         </div>
         <div class="feedback-error hidden" id="feedback-error"></div>
         <button class="feedback-submit-btn" id="feedback-submit">Send Feedback</button>
-        <div class="feedback-disclaimer">
-          <span class="feedback-disclaimer-icon">🚧</span>
-          E-Suyo is currently in <strong>prototype phase</strong> and supports the <strong>Albay area</strong> only. Features and data may be incomplete.
-          For detailed feedback, fill out our
-          <a href="https://docs.google.com/forms/d/1ZKrg7iH35esm4r5bO0k_QTexhxCACKdCqoLvG460pos/viewform" target="_blank" rel="noopener" class="feedback-form-link">official feedback form ↗</a>
+        <div class="feedback-survey-section">
+          <div class="feedback-survey-divider"><span>or</span></div>
+          <div class="feedback-survey-title">🎯 Revalidate our Cause</div>
+          <p class="feedback-survey-desc">Help us validate E-Suyo's impact on Albay commuters.</p>
+          <a href="https://docs.google.com/forms/d/e/1FAIpQLScCjI2HFS8gNdYz3bVKBsNCGSCjcWfAAVVkw0u-yM5i2FdB6Q/viewform" target="_blank" rel="noopener" class="feedback-survey-btn">📋 Answer 5-min Survey ↗</a>
         </div>
       </div>
     </div>
@@ -660,7 +681,7 @@
         <h2 class="welcome-title">Welcome to E-Suyo</h2>
         <span class="welcome-beta-badge">BETA</span>
       </div>
-      <p class="welcome-tagline">Your free guide to commuting in Albay, Philippines</p>
+      <p class="welcome-tagline">Jeepy commute guide</p>
       <div class="welcome-features">
         <div class="welcome-feature">
           <span class="welcome-feature-icon">🚐</span>
@@ -688,7 +709,23 @@
         <span>🚧</span>
         <span>E-Suyo is currently in <strong>beta</strong>. Routes, schedules, and landmarks may be incomplete or inaccurate. Your feedback helps us improve!</span>
       </div>
-      <button class="welcome-ok-btn" id="welcome-ok">OK, Got it</button>
+      <div class="welcome-actions">
+        <button class="welcome-ok-btn" id="welcome-ok">Got it</button>
+        <button class="welcome-skip-btn" id="welcome-skip">Don't show again</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile App Modal -->
+  <div id="mobile-app-overlay" class="hidden">
+    <div class="mobile-app-modal">
+      <button class="mobile-app-close" id="mobile-app-close">✕</button>
+      <img src="assets/mobile-promo.png" alt="E-Suyo Mobile App" class="mobile-app-poster">
+      <div class="mobile-app-body">
+        <div class="mobile-app-title">📱 E-Suyo Mobile App <span class="mobile-app-beta">BETA</span></div>
+        <p class="mobile-app-desc">Experience jeepney commuting smarter — fare calculator, route simulation, QR boarding, and more.</p>
+        <a href="https://kape-dev.vercel.app/esuyo.html" target="_blank" rel="noopener" class="mobile-app-btn">Download Now ↗</a>
+      </div>
     </div>
   </div>
 

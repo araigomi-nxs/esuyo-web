@@ -309,12 +309,14 @@ function _onBothReady() {
 }
 
 function showWelcome() {
-  if (localStorage.getItem('esuyo_welcome_seen')) return;
+  if (localStorage.getItem('esuyo_welcome_skip')) return;
   const overlay = document.getElementById('welcome-overlay');
   overlay.classList.remove('hidden');
-  document.getElementById('welcome-ok').addEventListener('click', () => {
-    overlay.classList.add('hidden');
-    localStorage.setItem('esuyo_welcome_seen', '1');
+  const close = () => overlay.classList.add('hidden');
+  document.getElementById('welcome-ok').addEventListener('click', close, { once: true });
+  document.getElementById('welcome-skip').addEventListener('click', () => {
+    close();
+    localStorage.setItem('esuyo_welcome_skip', '1');
   }, { once: true });
 }
 
@@ -372,8 +374,8 @@ function initMap() {
     container: 'map',
     style: currentMapStyle,
     center: MAP_CENTER, zoom: INITIAL_ZOOM,
-    pitch: INITIAL_PITCH, bearing: INITIAL_BEARING,
-    minPitch: INITIAL_PITCH, maxPitch: INITIAL_PITCH,
+    pitch: 0, bearing: INITIAL_BEARING,
+    minPitch: 0, maxPitch: 60,
     maxZoom: 18, minZoom: 10, antialias: !DEVICE_CONFIG.isMobile(), // Disable antialiasing on mobile
     renderWorldCopies: false,
     // Lock camera to the Philippines boundaries only
@@ -557,16 +559,44 @@ function addTerrain() {
   } catch (e) { console.error('Terrain error:', e); }
 }
 
+let _building3DLayerIds = [];
+
 function add3DBuildings() {
   try {
-    // The Liberty style from OpenFreeMap already includes 3D buildings
-    // Just ensure they're visible - don't try to add custom buildings
-    // (external vector tiles have CORS issues)
-    const styleLayerIds = map.getStyle().layers.map(l => l.id) || [];
-    console.info('Checking for 3D building layers in style...');
-    
-    // Liberty style includes building layers, they should render automatically
-    // If needed, we can show/hide them but they're part of the base style
+    const styleLayers = map.getStyle().layers;
+
+    // Liberty style already ships fill-extrusion building layers — use them directly
+    _building3DLayerIds = styleLayers
+      .filter(l => l.type === 'fill-extrusion')
+      .map(l => l.id);
+
+    // Carto/flat styles have no fill-extrusion — add our own on top of the existing building fill layer
+    if (_building3DLayerIds.length === 0) {
+      const bldFill = styleLayers.find(
+        l => l.type === 'fill' && (l['source-layer'] === 'building' || l.id.toLowerCase().includes('building'))
+      );
+      if (bldFill && !map.getLayer('bld-3d')) {
+        map.addLayer({
+          id: 'bld-3d',
+          type: 'fill-extrusion',
+          source: bldFill.source,
+          'source-layer': bldFill['source-layer'] || 'building',
+          paint: {
+            'fill-extrusion-color': '#d6d0c8',
+            'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['get', 'height'], 6],
+            'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
+            'fill-extrusion-opacity': 0.8
+          }
+        });
+      }
+      if (map.getLayer('bld-3d')) _building3DLayerIds = ['bld-3d'];
+    }
+
+    if (!is3D) {
+      _building3DLayerIds.forEach(id => {
+        try { map.setLayoutProperty(id, 'visibility', 'none'); } catch {}
+      });
+    }
   } catch (e) {
     console.warn('add3DBuildings:', e);
   }
@@ -3763,9 +3793,11 @@ function toggleMapStyle() {
     try { fetchLandmarksFromDB(); } catch(e) { console.warn('fetchLandmarksFromDB:', e); }
 
     try { renderAllRoutesOnMap(); } catch(e) { console.warn('renderAllRoutesOnMap:', e); }
-    try {
-      if (!is3D && map.getLayer('bld-3d')) map.setLayoutProperty('bld-3d', 'visibility', 'none');
-    } catch {}
+    if (!is3D) {
+      _building3DLayerIds.forEach(id => {
+        try { map.setLayoutProperty(id, 'visibility', 'none'); } catch {}
+      });
+    }
     try {
       if (!_shaderOn && map.getLayer('terrain-hillshade')) map.setLayoutProperty('terrain-hillshade', 'visibility', 'none');
     } catch {}
@@ -3785,12 +3817,13 @@ function toggleMapStyle() {
 
 }
 
-let is3D = true;
+let is3D = false;
 function toggle3D() {
   is3D = !is3D;
-  map.easeTo({ pitch: is3D ? 55 : 0, duration: 700 });
   const vis = is3D ? 'visible' : 'none';
-  if (map.getLayer('bld-3d')) map.setLayoutProperty('bld-3d', 'visibility', vis);
+  _building3DLayerIds.forEach(id => {
+    try { map.setLayoutProperty(id, 'visibility', vis); } catch {}
+  });
   _mswSetToggle('toggle-3d-buildings', is3D);
 }
 
@@ -3798,37 +3831,57 @@ let _shaderOn = false;
 let _shaderLayerReady = false;
 
 function _ensureShaderLayer() {
-  if (_shaderLayerReady) return;
-  try {
-    const demSourceSpec = {
-      type: 'raster-dem',
-      tiles: ['dem-filtered://{z}/{x}/{y}.png'],
-      encoding: 'terrarium',
-      tileSize: 256,
-      maxzoom: 14,
-    };
-    if (!map.getSource('terrain-dem-hs')) map.addSource('terrain-dem-hs', demSourceSpec);
-    if (!map.getLayer('terrain-hillshade')) {
-      const firstSymbol = map.getStyle().layers.find(l => l.type === 'symbol');
-      map.addLayer({
-        id: 'terrain-hillshade',
-        type: 'hillshade',
-        source: 'terrain-dem-hs',
-        layout: { visibility: 'visible' },
-        paint: {
-          'hillshade-exaggeration': 0.3,
-          'hillshade-shadow-color': '#8a9bb0',
-          'hillshade-highlight-color': '#ffffff',
-          'hillshade-accent-color': '#b0bec5',
-          'hillshade-illumination-direction': 315,
-          'hillshade-illumination-anchor': 'map'
-        }
-      }, firstSymbol?.id);
-    }
-    map.setTerrain({ source: 'terrain-dem', exaggeration: 0.65 });
-    map.setLight({ anchor: 'map', color: '#ffffff', intensity: 0.35, position: [1.5, 315, 45] });
-    _shaderLayerReady = true;
-  } catch (e) { console.warn('_ensureShaderLayer:', e); }
+  if (!_shaderLayerReady) {
+    try {
+      if (!_demProtocolRegistered) {
+        _demProtocolRegistered = true;
+        maplibregl.addProtocol('dem-filtered', async (params, abortController) => {
+          const tileUrl = params.url.replace('dem-filtered://', 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/');
+          try {
+            const response = await fetch(tileUrl, { signal: abortController.signal });
+            if (!response.ok) throw new Error(`${response.status}`);
+            return { data: await response.arrayBuffer() };
+          } catch {
+            const flat = document.createElement('canvas'); flat.width = 256; flat.height = 256;
+            const fc = flat.getContext('2d');
+            fc.fillStyle = 'rgb(128,0,0)'; fc.fillRect(0, 0, 256, 256);
+            return { data: await new Promise(r => flat.toBlob(r, 'image/png')).then(b => b.arrayBuffer()) };
+          }
+        });
+      }
+      if (!map.getSource('terrain-dem-hs')) {
+        map.addSource('terrain-dem-hs', {
+          type: 'raster-dem',
+          tiles: ['dem-filtered://{z}/{x}/{y}.png'],
+          encoding: 'terrarium',
+          tileSize: 256,
+          maxzoom: 14,
+        });
+      }
+      if (!map.getLayer('terrain-hillshade')) {
+        const firstSymbol = map.getStyle()?.layers?.find(l => l.type === 'symbol');
+        map.addLayer({
+          id: 'terrain-hillshade',
+          type: 'hillshade',
+          source: 'terrain-dem-hs',
+          layout: { visibility: 'visible' },
+          paint: {
+            'hillshade-exaggeration': 0.3,
+            'hillshade-shadow-color': '#8a9bb0',
+            'hillshade-highlight-color': '#ffffff',
+            'hillshade-accent-color': '#b0bec5',
+            'hillshade-illumination-direction': 315,
+            'hillshade-illumination-anchor': 'map'
+          }
+        }, firstSymbol?.id);
+      }
+      _shaderLayerReady = true;
+    } catch (e) { console.warn('_ensureShaderLayer:', e); }
+  }
+  // Whether first time or re-enable: always make the layer visible
+  if (_shaderLayerReady) {
+    try { map.setLayoutProperty('terrain-hillshade', 'visibility', 'visible'); } catch {}
+  }
 }
 
 function toggleShader() {
@@ -3838,7 +3891,6 @@ function toggleShader() {
     _ensureShaderLayer();
   } else {
     try { map.setLayoutProperty('terrain-hillshade', 'visibility', 'none'); } catch {}
-    try { map.setTerrain(null); } catch {}
   }
 }
 
@@ -4740,6 +4792,9 @@ function bindEvents() {
   document.getElementById('toggle-barangays').addEventListener('change', toggleBarangays);
   document.getElementById('toggle-shader').addEventListener('change', toggleShader);
   document.getElementById('toggle-3d-buildings').addEventListener('change', toggle3D);
+  _mswSetToggle('toggle-3d-buildings', is3D);
+  _mswSetToggle('toggle-shader', _shaderOn);
+  _mswSetToggle('toggle-barangays', barangaysVisible);
   document.getElementById('btn-map-settings').addEventListener('click', (e) => {
     e.stopPropagation();
     document.getElementById('map-settings-widget').classList.toggle('hidden');
@@ -4748,6 +4803,20 @@ function bindEvents() {
     if (!e.target.closest('#map-settings-widget') && !e.target.closest('#btn-map-settings')) {
       document.getElementById('map-settings-widget').classList.add('hidden');
     }
+  });
+  document.getElementById('top-notice-close').addEventListener('click', () => {
+    document.getElementById('top-notice').classList.add('hidden');
+  });
+  const _openMobileModal = () => document.getElementById('mobile-app-overlay').classList.remove('hidden');
+  const _closeMobileModal = () => document.getElementById('mobile-app-overlay').classList.add('hidden');
+  document.getElementById('btn-get-mobile').addEventListener('click', _openMobileModal);
+  document.getElementById('btn-notice-mobile').addEventListener('click', _openMobileModal);
+  document.getElementById('mobile-app-close').addEventListener('click', _closeMobileModal);
+  document.getElementById('mobile-app-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('mobile-app-overlay')) _closeMobileModal();
+  });
+  document.getElementById('btn-improve-app').addEventListener('click', () => {
+    openFeedback();
   });
   document.getElementById('btn-reset').addEventListener('click', () => {
     hideRouteDetail();
@@ -5108,36 +5177,3 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── Survey Modal ───────────────────────────────────
-(function initSurveyModal() {
-  const STORAGE_KEY = 'esuyo_survey_dismissed';
-  if (sessionStorage.getItem(STORAGE_KEY)) return;
-
-  function closeSurvey() {
-    sessionStorage.setItem(STORAGE_KEY, '1');
-    document.getElementById('survey-overlay').classList.add('hidden');
-  }
-
-  function showSurvey() {
-    if (sessionStorage.getItem(STORAGE_KEY)) return;
-    document.getElementById('survey-overlay').classList.remove('hidden');
-    document.getElementById('survey-close').addEventListener('click', closeSurvey);
-    document.getElementById('survey-skip').addEventListener('click', closeSurvey);
-    document.getElementById('survey-btn').addEventListener('click', closeSurvey);
-    document.getElementById('survey-overlay').addEventListener('click', (e) => {
-      if (e.target === document.getElementById('survey-overlay')) closeSurvey();
-    });
-  }
-
-  // Wait for loading screen to disappear, then show survey after 4 s
-  const observer = new MutationObserver(() => {
-    const ls = document.getElementById('loading-screen');
-    if (ls && ls.classList.contains('hidden')) {
-      observer.disconnect();
-      setTimeout(showSurvey, 4000);
-    }
-  });
-  const ls = document.getElementById('loading-screen');
-  if (ls) observer.observe(ls, { attributes: true, attributeFilter: ['class'] });
-  else setTimeout(showSurvey, 5000);
-})();
