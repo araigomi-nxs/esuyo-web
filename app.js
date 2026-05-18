@@ -543,7 +543,7 @@ function addTerrain() {
     };
 
     map.addSource('terrain-dem', demSourceSpec);
-    map.setTerrain({ source: 'terrain-dem', exaggeration: 1.5 });
+    map.setTerrain({ source: 'terrain-dem', exaggeration: 0.6 });
 
     map.addLayer({
       id: 'sky-layer',
