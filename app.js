@@ -374,7 +374,7 @@ function initMap() {
     container: 'map',
     style: currentMapStyle,
     center: MAP_CENTER, zoom: INITIAL_ZOOM,
-    pitch: 0, bearing: INITIAL_BEARING,
+    pitch: INITIAL_PITCH, bearing: INITIAL_BEARING,
     minPitch: 0, maxPitch: 60,
     maxZoom: 18, minZoom: 10, antialias: !DEVICE_CONFIG.isMobile(), // Disable antialiasing on mobile
     renderWorldCopies: false,
@@ -542,8 +542,8 @@ function addTerrain() {
       attribution: 'Terrain: Mapzen/AWS'
     };
 
-    // terrain-dem source is added here; setTerrain + hillshade are lazy-loaded on first shader toggle.
     map.addSource('terrain-dem', demSourceSpec);
+    map.setTerrain({ source: 'terrain-dem', exaggeration: 1.5 });
 
     map.addLayer({
       id: 'sky-layer',
