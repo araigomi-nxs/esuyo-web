@@ -3817,6 +3817,19 @@ function toggleMapStyle() {
 
 }
 
+let is3DTerrain = true;
+function toggle3DTerrain() {
+  is3DTerrain = !is3DTerrain;
+  if (is3DTerrain) {
+    try { map.setTerrain({ source: 'terrain-dem', exaggeration: 0.6 }); } catch {}
+    map.easeTo({ pitch: INITIAL_PITCH, duration: 600 });
+  } else {
+    try { map.setTerrain(null); } catch {}
+    map.easeTo({ pitch: 0, duration: 600 });
+  }
+  _mswSetToggle('toggle-3d-terrain', is3DTerrain);
+}
+
 let is3D = false;
 function toggle3D() {
   is3D = !is3D;
@@ -4792,9 +4805,11 @@ function bindEvents() {
   document.getElementById('toggle-barangays').addEventListener('change', toggleBarangays);
   document.getElementById('toggle-shader').addEventListener('change', toggleShader);
   document.getElementById('toggle-3d-buildings').addEventListener('change', toggle3D);
+  document.getElementById('toggle-3d-terrain').addEventListener('change', toggle3DTerrain);
   _mswSetToggle('toggle-3d-buildings', is3D);
   _mswSetToggle('toggle-shader', _shaderOn);
   _mswSetToggle('toggle-barangays', barangaysVisible);
+  _mswSetToggle('toggle-3d-terrain', is3DTerrain);
   document.getElementById('btn-map-settings').addEventListener('click', (e) => {
     e.stopPropagation();
     document.getElementById('map-settings-widget').classList.toggle('hidden');
