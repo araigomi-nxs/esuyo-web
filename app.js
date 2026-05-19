@@ -4315,11 +4315,6 @@ window.addEventListener('resize', () => {
         setTimeout(() => map.resize(), 200);
       }
     }
-    // Re-check mobile mode
-    if (DEVICE_CONFIG.isMobile()) {
-      document.getElementById('sidebar').classList.add('collapsed');
-      document.getElementById('sidebar-toggle').classList.add('visible');
-    }
   }, 150);
 });
 
@@ -4345,25 +4340,27 @@ let TERRAIN_DETAIL_SCALE = 1; // Will be adjusted by device config
 function initMobileSidebarCollapse() {
   const sb = document.getElementById('sidebar');
   const toggle = document.getElementById('sidebar-toggle');
-  
-  // Collapse sidebar on initial load if mobile
-  if (DEVICE_CONFIG.isMobile()) {
-    sb.classList.add('collapsed');
-    toggle.classList.add('visible');
-  } else {
-    sb.classList.remove('collapsed');
-    toggle.classList.remove('visible');
-  }
-  
-  // Re-check on window resize
-  window.addEventListener('resize', () => {
-    if (DEVICE_CONFIG.isMobile()) {
+  let lastIsMobile = null;
+
+  const syncSidebarLayout = (force = false) => {
+    const isMobile = DEVICE_CONFIG.isMobile();
+    if (!force && lastIsMobile === isMobile) return;
+    lastIsMobile = isMobile;
+    if (isMobile) {
       sb.classList.add('collapsed');
       toggle.classList.add('visible');
     } else {
       sb.classList.remove('collapsed');
       toggle.classList.remove('visible');
     }
+  };
+  
+  // Collapse sidebar on initial load if mobile.
+  syncSidebarLayout(true);
+  
+  // Re-check on window resize.
+  window.addEventListener('resize', () => {
+    syncSidebarLayout();
   });
 }
 
