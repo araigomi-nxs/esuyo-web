@@ -2058,6 +2058,7 @@ body.viewer-mode #role-badge {
     --header-h: 52px;
     --sidebar-w: 100%;
     --builder-w: 100%;
+    --app-height: 100vh;
     --ease: 0.2s cubic-bezier(0.2, 0, 0, 1); /* Shorter animations on mobile */
   }
 
@@ -2152,7 +2153,8 @@ body.viewer-mode #role-badge {
     width: 100%; max-width: 100%;
     border-radius: 0 0 var(--radius) var(--radius);
     transform: translateY(-12px);
-    max-height: 50vh;
+    height: calc(var(--app-height, 100vh) - var(--header-h));
+    max-height: calc(var(--app-height, 100vh) - var(--header-h));
   }
   #place-search-panel.open { transform: translateY(0); }
 

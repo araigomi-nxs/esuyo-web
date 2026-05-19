@@ -4337,6 +4337,15 @@ function addHapticFeedback(element) {
 
 let TERRAIN_DETAIL_SCALE = 1; // Will be adjusted by device config
 
+function syncAppViewportHeight() {
+  const viewportHeight = window.visualViewport?.height || window.innerHeight;
+  document.documentElement.style.setProperty('--app-height', `${Math.round(viewportHeight)}px`);
+}
+
+syncAppViewportHeight();
+window.visualViewport?.addEventListener('resize', syncAppViewportHeight);
+window.visualViewport?.addEventListener('scroll', syncAppViewportHeight);
+
 function initMobileSidebarCollapse() {
   const sb = document.getElementById('sidebar');
   const toggle = document.getElementById('sidebar-toggle');
