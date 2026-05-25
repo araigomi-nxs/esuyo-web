@@ -323,27 +323,29 @@ function _renderLivePasadaWidget(routeId) {
   el.classList.remove('hidden');
 
   const rows = sessions.map(s => {
-    const plate   = escHtml(s.vehicle_plate  || 'Unknown');
-    const name    = escHtml(s.driver_name    || 'Unknown Driver');
-    const coop    = escHtml(s.cooperative    || '');
-    const color   = escHtml(s.vehicle_color  || '');
+    const plate   = escHtml(s.vehicle_plate || 'Unknown');
+    const name    = escHtml(s.driver_name   || 'Unknown Driver');
+    const coop    = s.cooperative   ? escHtml(s.cooperative)  : '';
+    const color   = s.vehicle_color ? escHtml(s.vehicle_color): '';
     const pax     = s.passenger_count != null ? s.passenger_count : '—';
     const elapsed = _formatElapsed(s.started_at);
     const cssCol  = _pasadaColorCss(s.vehicle_color);
 
-    const metaParts = [
-      color ? `<span class="lpw-color-dot" style="background:${cssCol}"></span>${color}` : '',
-      coop  ? escHtml(s.cooperative) : '',
-      `${pax} pax`,
-    ].filter(Boolean).join(' · ');
-
     return `<div class="lpw-card">
-      <div class="lpw-card-top">
-        <span class="lpw-plate">🚐 ${plate}</span>
-        ${elapsed ? `<span class="lpw-elapsed">⏱ ${elapsed}</span>` : ''}
+      <div class="lpw-card-accent" style="background:${cssCol}"></div>
+      <img src="assets/jeep.png" class="lpw-card-jeep" alt="">
+      <div class="lpw-card-body">
+        <div class="lpw-card-row1">
+          <span class="lpw-plate">${plate}</span>
+          ${elapsed ? `<span class="lpw-elapsed">⏱ ${elapsed}</span>` : ''}
+        </div>
+        <div class="lpw-driver-name">${name}</div>
+        <div class="lpw-card-chips">
+          ${coop  ? `<span class="lpw-chip lpw-chip--coop">${coop}</span>` : ''}
+          ${color ? `<span class="lpw-chip lpw-chip--color"><span class="lpw-chip-dot" style="background:${cssCol}"></span>${color}</span>` : ''}
+          <span class="lpw-chip lpw-chip--pax">${pax} pax</span>
+        </div>
       </div>
-      <div class="lpw-driver-name">${name}</div>
-      <div class="lpw-card-meta">${metaParts}</div>
     </div>`;
   }).join('');
 
@@ -396,10 +398,11 @@ function _placePasadaBeacons(sessions) {
     const cssCol = _pasadaColorCss(s.vehicle_color);
     const el = document.createElement('div');
     el.className = 'pasada-beacon';
-    // Tint the core with the vehicle color
     el.innerHTML = `
-      <div class="pasada-beacon-ring" style="background:${cssCol}33"></div>
-      <div class="pasada-beacon-core" style="background:${cssCol}">🚐</div>`;
+      <div class="pasada-beacon-ring" style="background:${cssCol}55;border-color:${cssCol}"></div>
+      <div class="pasada-beacon-core" style="background:${cssCol}">
+        <img src="assets/jeep.png" class="pasada-beacon-jeep" alt="jeep">
+      </div>`;
 
     el.addEventListener('click', ev => {
       ev.stopPropagation();
