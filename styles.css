@@ -1638,7 +1638,7 @@ body.viewer-mode #role-badge {
 
 /* ── Beacon click popup ──────────────────────────── */
 .pasada-beacon-popup {
-  min-width: 160px; font-size: 0.78rem; padding: 2px 0;
+  min-width: 160px; font-size: 0.78rem; padding: 10px 14px;
 }
 .pbp-plate {
   display: flex; align-items: center; gap: 6px;
