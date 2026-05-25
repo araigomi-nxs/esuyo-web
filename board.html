@@ -206,15 +206,32 @@
   }
   .track-marker.a { background: var(--green); }
   .track-marker.b { background: var(--red); }
-  /* Tick mark */
+  /* Tick mark — snap-point pillars (one per stop) */
   .tick-mark {
-    position: absolute; width: 2px; background: rgba(115,118,134,.4);
-    border-radius: 1px; pointer-events: none;
-    top: 84px; height: 8px;
+    position: absolute; width: 4px; background: rgba(0,70,199,.28);
+    border-radius: 2px; pointer-events: all; cursor: pointer;
+    top: 82px; height: 18px;
     transform: translateX(-50%);
+    transition: background .1s, box-shadow .1s;
+    z-index: 4;
   }
-  /* Space for ticks below slider */
-  .slider-ticks-space { height: 36px; }
+  .tick-mark:hover:not(.active) { background: rgba(0,70,199,.55); }
+  .tick-mark.active {
+    background: var(--primary);
+    box-shadow: 0 0 0 4px rgba(0,70,199,.18);
+  }
+  /* Stop-name micro-label beneath each tick */
+  .tick-label {
+    position: absolute; top: 103px;
+    transform: translateX(-50%);
+    font-family: 'Lexend', sans-serif; font-size: 7px; font-weight: 700;
+    color: var(--outline); white-space: nowrap;
+    pointer-events: none; line-height: 1; letter-spacing: -.01em;
+    opacity: .8;
+  }
+  .tick-label.active { color: var(--primary); opacity: 1; font-size: 7.5px; }
+  /* Space for ticks + stop labels below slider */
+  .slider-ticks-space { height: 52px; }
 
   /* ── Input pods ───────────────────────────── */
   .input-pod {
@@ -675,6 +692,7 @@ let _hasDiscount = false;
 let _tip         = 5;
 let _baseFare    = 0;
 let _isCustomMode = false;
+let _geoDebounce  = null;   // timer handle for reverse-geocode debounce
 let _map         = null;
 let _beaconMarker = null;
 let _markerA     = null;
@@ -776,6 +794,30 @@ function buildStopKms() {
 function colorMap(str) {
   const m={red:'#EF4444',blue:'#3B82F6',yellow:'#F59E0B',green:'#22C55E',white:'#F3F4F6',black:'#111827',orange:'#F97316',purple:'#8B5CF6'};
   return m[(str||'').toLowerCase()]||(str&&str.startsWith('#')?str:'#9CA3AF');
+}
+
+// ── Reverse geocode (Nominatim, no key needed) ─────────────────────────────
+async function reverseGeocode(lat, lng) {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat.toFixed(6)}&lon=${lng.toFixed(6)}&format=json&zoom=17`,
+      { headers: { 'Accept-Language': 'fil,en' } }
+    );
+    if (!res.ok) return null;
+    const j = await res.json();
+    const a = j.address || {};
+    // Priority: named road, building, neighbourhood, suburb, city
+    return (
+      a.road        ||
+      a.building    ||
+      a.amenity     ||
+      a.neighbourhood||
+      a.suburb      ||
+      a.city_district||
+      a.city        ||
+      (j.display_name ? j.display_name.split(',')[0].trim() : null)
+    ) || null;
+  } catch { return null; }
 }
 
 // ── screens ────────────────────────────────────────────────────────────────
@@ -915,38 +957,78 @@ function syncDropoffDisplay() {
 }
 
 // ── slider logic ───────────────────────────────────────────────────────────
-// Uses native <input type="range"> — same concept as Dart's Slider.adaptive.
-// The native element handles all touch/mouse events reliably inside the
-// overflow-y:auto #sheet without scroll-capture conflicts.
+// Snap behaviour:
+//   • While dragging (input):  magnetic snap to any stop within 6% of track
+//     range (or min 80 m). Outside that zone the slider floats freely and
+//     reverse-geocodes the road-geometry point (debounced 500 ms).
+//   • On release (change):     always hard-snap to nearest stop unless
+//     Custom Mode is active.
+const SNAP_DRAG_PCT = 0.06;   // 6% of track range = snap zone radius
+
 function onSliderInput() {
-  // _sliderKm is already updated by the native input event listener
-  const pt = coordAtDistance(_sliderKm);
-  if (pt) { _dropoffLat=pt.lat; _dropoffLng=pt.lng; }
-  const ni = nearestStopIdx(_stops, _sliderKm);
-  // Always show nearest stop name while dragging (not "Custom Point" between stops)
-  _dropoffName = _stops[ni]?.name || 'Custom Point';
+  const slider = document.getElementById('km-slider');
+  const rawKm  = +slider.value;
+  const lastStopKm = _stopKms.length ? _stopKms[_stopKms.length - 1] : _totalKm;
+  const range      = lastStopKm - _boardingKm;
+  // Snap threshold (km): 6% of range, min 80 m
+  const snapKm = Math.max(0.08, range * SNAP_DRAG_PCT);
+
+  // Find nearest stop
+  const ni       = nearestStopIdx(_stops, rawKm);
+  const stopKm   = _stopKms[ni] ?? rawKm;
+  const snapDist = Math.abs(stopKm - rawKm);
+
+  if (!_isCustomMode && snapDist <= snapKm && _stops[ni]) {
+    // ── Snap to stop ──────────────────────────────────────────────────────
+    _sliderKm    = stopKm;
+    _dropoffName = _stops[ni].name;
+    _dropoffLat  = _stops[ni].lat;
+    _dropoffLng  = _stops[ni].lng;
+    // Force thumb to exact snap position (safe: doesn't re-fire 'input')
+    slider.value = _sliderKm;
+    clearTimeout(_geoDebounce);
+    if (_map) moveMarkerB(_dropoffLat, _dropoffLng);
+
+  } else {
+    // ── Free position — use road geometry ─────────────────────────────────
+    _sliderKm = rawKm;
+    const pt  = coordAtDistance(rawKm);
+    if (pt) { _dropoffLat = pt.lat; _dropoffLng = pt.lng; }
+    // Show a loading placeholder while we geocode
+    _dropoffName = '📍 …';
+    if (_map && pt) moveMarkerB(pt.lat, pt.lng);
+
+    // Debounced reverse geocode so we don't spam Nominatim during a drag
+    clearTimeout(_geoDebounce);
+    const cLat = _dropoffLat, cLng = _dropoffLng, cKm = rawKm;
+    _geoDebounce = setTimeout(async () => {
+      if (Math.abs(_sliderKm - cKm) > 0.05) return; // slider moved — stale
+      const name = await reverseGeocode(cLat, cLng);
+      if (Math.abs(_sliderKm - cKm) > 0.05) return; // moved while awaiting
+      _dropoffName = name || `Route point ${cKm.toFixed(2)} km`;
+      syncDropoffDisplay();
+    }, 500);
+  }
+
   syncDropoffDisplay();
   updateSliderPositions();
-  // Move marker B: prefer road geometry, fall back to nearest stop lat/lng
-  const nearestPt = (ni < _stops.length) ? { lat: _stops[ni].lat, lng: _stops[ni].lng } : null;
-  const movePt = pt || nearestPt || (_dropoffLat != null ? { lat: _dropoffLat, lng: _dropoffLng } : null);
-  if (_map && movePt) moveMarkerB(movePt.lat, movePt.lng);
   if (_map) drawHighlight();
 }
 
 function onSliderSnap() {
-  // On release, snap to nearest stop if within 0.3 km
+  // On release: hard-snap to nearest stop (Custom Mode bypasses this)
+  if (_isCustomMode) return;
   const ni = nearestStopIdx(_stops, _sliderKm);
-  const dist = Math.abs(_stopKms[ni] - _sliderKm);
-  if (dist < 0.3 && _stops[ni]) {
-    _sliderKm = _stopKms[ni];
-    _dropoffName = _stops[ni].name;
-    _dropoffLat  = _stops[ni].lat;
-    _dropoffLng  = _stops[ni].lng;
-    syncDropoffDisplay();
-    updateSliderPositions();
-    if (_map) { moveMarkerB(_dropoffLat, _dropoffLng); drawHighlight(); }
-  }
+  if (!_stops[ni]) return;
+  _sliderKm    = _stopKms[ni];
+  _dropoffName = _stops[ni].name;
+  _dropoffLat  = _stops[ni].lat;
+  _dropoffLng  = _stops[ni].lng;
+  clearTimeout(_geoDebounce);
+  document.getElementById('km-slider').value = _sliderKm;
+  syncDropoffDisplay();
+  updateSliderPositions();
+  if (_map) { moveMarkerB(_dropoffLat, _dropoffLng); drawHighlight(); }
 }
 
 function updateSliderPositions() {
@@ -982,16 +1064,49 @@ function updateSliderPositions() {
   // B marker — centred under thumb
   document.getElementById('track-b').style.left = Math.max(0, bPx - 8) + 'px';
 
-  // Tick marks — one per stop at or ahead of boarding point
+  // ── Snap-point tick marks — one pillar per stop ─────────────────────────
+  // Ticks are tappable: clicking jumps the slider directly to that stop.
+  // The active tick (where B currently sits) gets a highlighted ring.
+  // A micro-label shows the first word(s) of each stop name.
   const container = document.getElementById('tick-container');
   container.innerHTML = '';
-  _stopKms.forEach(sk => {
+
+  // Decide label density: show all if ≤8 stops, else every other stop
+  const totalTicks  = _stopKms.filter(sk => sk >= _boardingKm - 0.05).length;
+  const labelEvery  = totalTicks <= 8 ? 1 : 2;
+  let   visibleIdx  = 0;
+
+  _stopKms.forEach((sk, i) => {
     if (sk < _boardingKm - 0.05) return;
-    const f    = range > 0 ? Math.max(0, Math.min(1, (sk - _boardingKm) / range)) : 0;
+    const stop     = _stops[i];
+    const f        = range > 0 ? Math.max(0, Math.min(1, (sk - _boardingKm) / range)) : 0;
+    const pxLeft   = thumbR + f * trackW;
+    const isActive = Math.abs(sk - _sliderKm) < 0.05;
+
+    // ── pillar ──────────────────────────────────────────────────────────
     const tick = document.createElement('div');
-    tick.className  = 'tick-mark';
-    tick.style.left = (thumbR + f * trackW) + 'px';
+    tick.className  = 'tick-mark' + (isActive ? ' active' : '');
+    tick.style.left = pxLeft + 'px';
+    if (stop) {
+      tick.title = stop.name;
+      const clickStop = stop, clickIdx = i;
+      tick.addEventListener('click',    ()  => selectStop(clickStop, clickIdx));
+      tick.addEventListener('touchend', (e) => { e.preventDefault(); selectStop(clickStop, clickIdx); });
+    }
     container.appendChild(tick);
+
+    // ── label (truncated to ~10 chars) ──────────────────────────────────
+    const showLabel = (visibleIdx % labelEvery === 0) || isActive;
+    if (showLabel && stop?.name) {
+      const label = document.createElement('div');
+      label.className  = 'tick-label' + (isActive ? ' active' : '');
+      label.style.left = pxLeft + 'px';
+      // First word(s), max 10 chars
+      const raw = stop.name.replace(/\s+/g,' ').trim();
+      label.textContent = raw.length > 10 ? raw.substring(0, 9) + '…' : raw;
+      container.appendChild(label);
+    }
+    visibleIdx++;
   });
 }
 
