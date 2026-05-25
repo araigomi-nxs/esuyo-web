@@ -174,17 +174,21 @@
     width: 100%; height: 5px; border-radius: 3px; outline: none; cursor: pointer;
     background: linear-gradient(to right, rgba(115,118,134,.22) 0%, rgba(115,118,134,.22) var(--a-pct,0%), var(--primary) var(--a-pct,0%), var(--primary) var(--b-pct,50%), rgba(115,118,134,.22) var(--b-pct,50%));
     position: relative; z-index: 4; margin: 0;
+    touch-action: none; /* prevent parent scroll from eating slider touches */
   }
   input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%;
+    -webkit-appearance: none; width: 28px; height: 28px; border-radius: 50%;
     background: var(--primary); border: 3px solid #fff;
     box-shadow: 0 2px 8px rgba(0,70,199,.35); cursor: pointer;
   }
   input[type=range]::-moz-range-thumb {
-    width: 22px; height: 22px; border-radius: 50%;
+    width: 28px; height: 28px; border-radius: 50%;
     background: var(--primary); border: 3px solid #fff;
     box-shadow: 0 2px 8px rgba(0,70,199,.35); cursor: pointer;
   }
+  /* Expand the touch area of the slider track */
+  input[type=range]::-webkit-slider-runnable-track { height: 5px; border-radius: 3px; }
+  input[type=range]::-moz-range-track { height: 5px; border-radius: 3px; }
   /* Space for ticks below slider */
   .slider-ticks-space { height: 20px; }
 
@@ -849,6 +853,7 @@ function populateUI(plateFall) {
     slider.value = _sliderKm;
     slider.addEventListener('input', onSliderInput);
     slider.addEventListener('change', onSliderChange);
+    setupSliderTouch(slider); // fix: sheet scroll eats native touch events
     buildTickMarks();
     updateSliderPositions();
   } else {
@@ -879,6 +884,47 @@ function syncDropoffDisplay() {
   document.getElementById('pod-b-value').textContent = _dropoffName;
   document.getElementById('sc-dest').textContent = _dropoffName;
   updateFareDisplay();
+}
+
+// ── slider touch handler ────────────────────────────────────────────────────
+// The sheet is overflow-y: auto, so native range-input touch events get eaten
+// by the scroll container. We intercept touchstart/touchmove on the slider,
+// call preventDefault to cancel the scroll, then compute value from touch X.
+function setupSliderTouch(slider) {
+  const THUMB_W = 28; // must match CSS thumb size
+
+  function valueFromTouch(e) {
+    const touch = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+    if (!touch) return null;
+    const rect  = slider.getBoundingClientRect();
+    const trackW = rect.width - THUMB_W;
+    if (trackW <= 0) return null;
+    const x    = Math.max(0, Math.min(touch.clientX - rect.left - THUMB_W / 2, trackW));
+    const frac = x / trackW;
+    const min  = parseFloat(slider.min) || 0;
+    const max  = parseFloat(slider.max) || 1;
+    return min + frac * (max - min);
+  }
+
+  slider.addEventListener('touchstart', e => {
+    const val = valueFromTouch(e);
+    if (val === null) return;
+    e.preventDefault();
+    slider.value = val;
+    slider.dispatchEvent(new Event('input', { bubbles: true }));
+  }, { passive: false });
+
+  slider.addEventListener('touchmove', e => {
+    const val = valueFromTouch(e);
+    if (val === null) return;
+    e.preventDefault();
+    slider.value = val;
+    slider.dispatchEvent(new Event('input', { bubbles: true }));
+  }, { passive: false });
+
+  slider.addEventListener('touchend', e => {
+    slider.dispatchEvent(new Event('change', { bubbles: true }));
+  }, { passive: true });
 }
 
 // ── slider logic ───────────────────────────────────────────────────────────
@@ -918,7 +964,7 @@ function updateSliderPositions() {
   const wrap = document.getElementById('slider-wrap');
   const wrapW = wrap.offsetWidth;
   if (!wrapW) return; // not yet rendered
-  const thumbW = 22;
+  const thumbW = 28;
   const trackW = wrapW - thumbW;
   const lastStopKm = _stopKms.length ? _stopKms[_stopKms.length - 1] : _totalKm;
   const range = lastStopKm - _boardingKm;
