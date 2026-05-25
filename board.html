@@ -142,6 +142,7 @@
   .slider-wrap {
     position: relative; width: 100%; user-select: none;
     padding-top: 34px; /* space for price bubble (24px) + gap (10px) */
+    touch-action: none; /* prevent parent #sheet from scrolling over slider */
   }
   /* Price bubble */
   .price-bubble {
@@ -398,6 +399,9 @@
     padding: 14px 16px; border-radius: 12px; cursor: pointer;
     margin-bottom: 4px; transition: background .1s;
     touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    /* reset button element styles */
+    width: 100%; background: none; border: none; font: inherit; color: inherit;
+    text-align: left;
   }
   .dm-item:hover { background: var(--surf-low); }
   .dm-item:active { background: var(--surf-mid); }
@@ -551,15 +555,17 @@
     </div>
 
     <!-- B: Drop-off pod -->
-    <div class="b-pod-wrap" id="b-pod" onclick="openDropoffModal()">
-      <div class="b-pod-left">
+    <div class="b-pod-wrap" id="b-pod">
+      <!-- button element = reliable tap on all iOS versions without cursor:pointer hacks -->
+      <button class="b-pod-left" onclick="openDropoffModal()" type="button"
+              style="flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:16px 14px;background:none;border:none;cursor:pointer;text-align:left;-webkit-tap-highlight-color:transparent;">
         <div class="pod-circle b">B</div>
         <div class="pod-info">
           <div class="pod-label">DROP OFF</div>
           <div class="pod-value green" id="pod-b-value">—</div>
         </div>
         <span class="b-pod-arrow" style="font-family:'Material Symbols Outlined',sans-serif;font-size:20px;font-style:normal;font-variation-settings:'FILL' 0,'wght' 400;">expand_more</span>
-      </div>
+      </button>
       <div class="b-pod-divider"></div>
       <div class="b-pod-custom" id="custom-btn" onclick="toggleCustomMode(event)">
         <div class="custom-circle" id="custom-circle">map</div>
@@ -807,10 +813,15 @@ async function initBoard() {
     _route = route||null;
   }
 
-  _stops = (_route?.stops||[]).filter(s=>s.lat!=null&&s.lng!=null);
+  // Support both lat/lng and latitude/longitude field names from DB
+  const rawStops = _route?.stops || [];
+  _stops = rawStops
+    .map(s => ({ ...s, lat: s.lat ?? s.latitude ?? null, lng: s.lng ?? s.longitude ?? null }))
+    .filter(s => s.lat != null && s.lng != null);
+
   _flatCoords = buildFlatCoords();
   _totalKm = totalRouteKm(_flatCoords);
-  _stopKms = buildStopKms();   // now cumulative, guaranteed in route order
+  _stopKms = buildStopKms();   // cumulative km per stop, guaranteed in route order
 
   // Jeepney boarding position — projected onto flat coords (same haversine basis)
   _boardingKm = (session.lat&&session.lng) ? projectToRoute(session.lat, session.lng) : 0;
@@ -893,45 +904,71 @@ function syncDropoffDisplay() {
   updateFareDisplay();
 }
 
-// ── custom pointer-events slider ────────────────────────────────────────────
-// Replaces <input type="range"> which is unreliable inside overflow:auto
-// containers on mobile. Uses setPointerCapture so dragging works even if
-// the pointer leaves the track element.
+// ── slider (touch + pointer dual-mode) ────────────────────────────────────
+// iOS Safari inside overflow:auto containers swallows pointer events when it
+// thinks the gesture might be a scroll. We register BOTH touch events (with
+// preventDefault to kill the scroll) AND pointer events (desktop/non-iOS).
+// A flag prevents double-firing when both fire for the same gesture.
 function setupCustomSlider() {
   const track = document.getElementById('km-slider-track');
-  let active = false;
+  if (!track) return;
+  let dragging = false;
+  let touchHandled = false; // true = this gesture was claimed by touchstart
 
-  function fracFromX(clientX) {
-    const rect = track.getBoundingClientRect();
-    if (rect.width <= 0) return 0;
-    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  function getFrac(clientX) {
+    const r = track.getBoundingClientRect();
+    return r.width > 0 ? Math.max(0, Math.min(1, (clientX - r.left) / r.width)) : 0;
   }
-
-  function applyFrac(f) {
-    const lastKm = _stopKms.length ? _stopKms[_stopKms.length - 1] : _totalKm;
-    _sliderKm = _boardingKm + f * (lastKm - _boardingKm);
+  function apply(clientX) {
+    const last = _stopKms.length ? _stopKms[_stopKms.length - 1] : _totalKm;
+    _sliderKm = _boardingKm + getFrac(clientX) * (last - _boardingKm);
     onSliderInput();
   }
 
+  // ── Touch events (primary on iOS — must preventDefault to stop parent scroll)
+  track.addEventListener('touchstart', e => {
+    e.preventDefault();          // stops #sheet from scrolling over slider
+    touchHandled = true;
+    dragging = true;
+    apply(e.touches[0].clientX);
+  }, { passive: false });
+
+  track.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (dragging) apply(e.touches[0].clientX);
+  }, { passive: false });
+
+  track.addEventListener('touchend', e => {
+    if (!dragging) return;
+    dragging = false;
+    if (e.changedTouches.length) apply(e.changedTouches[0].clientX);
+    onSliderSnap();
+    setTimeout(() => { touchHandled = false; }, 300);
+  }, { passive: false });
+
+  track.addEventListener('touchcancel', () => {
+    dragging = false;
+    setTimeout(() => { touchHandled = false; }, 300);
+  }, { passive: true });
+
+  // ── Pointer events (desktop mouse + non-iOS touch)
   track.addEventListener('pointerdown', e => {
-    active = true;
-    track.setPointerCapture(e.pointerId);
-    applyFrac(fracFromX(e.clientX));
+    if (touchHandled) return;    // touch events already handling this
+    dragging = true;
+    try { track.setPointerCapture(e.pointerId); } catch(_) {}
+    apply(e.clientX);
   });
-
   track.addEventListener('pointermove', e => {
-    if (!active) return;
-    applyFrac(fracFromX(e.clientX));
+    if (touchHandled || !dragging) return;
+    apply(e.clientX);
   });
-
   track.addEventListener('pointerup', e => {
-    if (!active) return;
-    active = false;
-    applyFrac(fracFromX(e.clientX));
+    if (touchHandled || !dragging) return;
+    dragging = false;
+    apply(e.clientX);
     onSliderSnap();
   });
-
-  track.addEventListener('pointercancel', () => { active = false; });
+  track.addEventListener('pointercancel', () => { if (!touchHandled) dragging = false; });
 }
 
 // ── slider logic ───────────────────────────────────────────────────────────
@@ -1098,19 +1135,21 @@ function buildDropoffModal() {
     const distFromBoarding = Math.max(0, km - _boardingKm);
     const isSelected = stop.name === _dropoffName;
 
-    const item = document.createElement('div');
+    // <button> instead of <div> — guaranteed to fire click on all iOS versions
+    const item = document.createElement('button');
+    item.type = 'button';
     item.className = 'dm-item' + (isSelected ? ' selected' : '');
     const iconName = isSelected ? 'check_circle' : 'location_on';
     item.innerHTML = `
       <span class="dm-item-icon" style="font-family:'Material Symbols Outlined',sans-serif;font-style:normal;font-size:20px;font-variation-settings:'FILL' ${isSelected ? 1 : 0},'wght' 400;color:${isSelected?'var(--primary)':'var(--outline)'}">${iconName}</span>
-      <div style="flex:1">
+      <div style="flex:1;text-align:left">
         <div class="dm-item-name">${escHtml(stop.name)}</div>
         <div class="dm-item-sub" style="display:flex;gap:12px">
           <span>📍 ${distFromBoarding.toFixed(1)} km away</span>
           <span>📏 ${km.toFixed(1)} km from start</span>
         </div>
       </div>`;
-    item.addEventListener('click', () => selectStop(stop, idx));
+    item.onclick = () => selectStop(stop, idx);
     list.appendChild(item);
   });
 }
