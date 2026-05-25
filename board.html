@@ -172,7 +172,7 @@
   input[type=range] {
     -webkit-appearance: none; appearance: none;
     width: 100%; height: 5px; border-radius: 3px; outline: none; cursor: pointer;
-    background: linear-gradient(to right, var(--primary) var(--pct,50%), rgba(115,118,134,.22) var(--pct,50%));
+    background: linear-gradient(to right, rgba(115,118,134,.22) 0%, rgba(115,118,134,.22) var(--a-pct,0%), var(--primary) var(--a-pct,0%), var(--primary) var(--b-pct,50%), rgba(115,118,134,.22) var(--b-pct,50%));
     position: relative; z-index: 4; margin: 0;
   }
   input[type=range]::-webkit-slider-thumb {
@@ -816,9 +816,9 @@ function populateUI(plateFall) {
   // Slider
   if (_stops.length) {
     const slider = document.getElementById('km-slider');
-    slider.min = 0;
+    slider.min = _boardingKm;
     slider.max = _totalKm;
-    slider.step = _totalKm / 1000;
+    slider.step = Math.max((_totalKm - _boardingKm) / 1000, 0.001);
     slider.value = _sliderKm;
     slider.addEventListener('input', onSliderInput);
     slider.addEventListener('change', onSliderChange);
@@ -834,6 +834,8 @@ function populateUI(plateFall) {
   updateFareDisplay();
 
   document.getElementById('loading-screen').classList.remove('show');
+  // Re-measure slider positions now that the sheet is visible
+  requestAnimationFrame(() => updateSliderPositions());
 }
 
 function nearestStopIdx(stops, km) {
@@ -861,10 +863,11 @@ function onSliderInput() {
   // Nearest stop name for display
   const ni = nearestStopIdx(_stops, _sliderKm);
   const dist = Math.abs(_stopKms[ni] - _sliderKm);
-  _dropoffName = dist < 0.15 ? (_stops[ni]?.name||'Custom Point') : 'Custom Point';
+  _dropoffName = dist < 0.2 ? (_stops[ni]?.name||'Custom Point') : 'Custom Point';
   syncDropoffDisplay();
   updateSliderPositions();
-  if (_map && pt) moveMarkerB(pt.lat, pt.lng);
+  const movePt = pt || (_dropoffLat != null ? { lat: _dropoffLat, lng: _dropoffLng } : null);
+  if (_map && movePt) moveMarkerB(movePt.lat, movePt.lng);
   if (_map) drawHighlight();
 }
 
@@ -872,7 +875,7 @@ function onSliderChange() {
   // On release, snap to nearest stop if very close
   const ni = nearestStopIdx(_stops, _sliderKm);
   const dist = Math.abs(_stopKms[ni] - _sliderKm);
-  if (dist < 0.15 && _stops[ni]) {
+  if (dist < 0.2 && _stops[ni]) {
     _sliderKm = _stopKms[ni];
     _dropoffName = _stops[ni].name;
     _dropoffLat  = _stops[ni].lat;
@@ -887,34 +890,42 @@ function onSliderChange() {
 function updateSliderPositions() {
   const wrap = document.getElementById('slider-wrap');
   const wrapW = wrap.offsetWidth;
+  if (!wrapW) return; // not yet rendered
   const thumbW = 22;
   const trackW = wrapW - thumbW;
-  const bFrac = _totalKm > 0 ? Math.max(0, Math.min(1, _sliderKm / _totalKm)) : 0;
-  const aFrac = _totalKm > 0 ? Math.max(0, Math.min(1, _boardingKm / _totalKm)) : 0;
-  const bPx = bFrac * trackW + thumbW/2;
+  const range = _totalKm - _boardingKm;
+  const relFrac = range > 0 ? Math.max(0, Math.min(1, (_sliderKm - _boardingKm) / range)) : 0;
 
-  // Slider fill gradient
+  // Gradient fractions are relative to the slider's own range [_boardingKm, _totalKm]
+  // A is always at the left edge (0%), B moves with _sliderKm
+  const aFrac = 0;
+  const bFrac = relFrac;
+  const bPx = relFrac * trackW + thumbW/2;
+
+  // Slider fill gradient — highlight only the segment from A to B
   const slider = document.getElementById('km-slider');
-  slider.style.setProperty('--pct', (bFrac*100)+'%');
+  slider.style.setProperty('--a-pct', (aFrac*100)+'%');
+  slider.style.setProperty('--b-pct', (bFrac*100)+'%');
 
   // Price bubble (centered on thumb)
   const bubble = document.getElementById('price-bubble');
   const bw = bubble.offsetWidth || 60;
   bubble.style.left = Math.max(0, Math.min(bPx - bw/2, wrapW-bw)) + 'px';
 
-  // A marker (offset by half thumb to align with track)
+  // A marker — always at leftmost (boarding point = slider min)
   const trackA = document.getElementById('track-a');
-  trackA.style.left = (aFrac * trackW + thumbW/2 - 8) + 'px'; // -8 = half circle width
+  trackA.style.left = (thumbW/2 - 8) + 'px';
 
-  // B marker
+  // B marker — relative to valid range
   const trackB = document.getElementById('track-b');
-  trackB.style.left = (bFrac * trackW + thumbW/2 - 8) + 'px';
+  trackB.style.left = (relFrac * trackW + thumbW/2 - 8) + 'px';
 
-  // Tick marks
+  // Tick marks — only stops at or ahead of boarding point
   const container = document.getElementById('tick-container');
   container.innerHTML = '';
   _stopKms.forEach(sk => {
-    const frac = _totalKm > 0 ? Math.max(0,Math.min(1,sk/_totalKm)) : 0;
+    if (sk < _boardingKm - 0.05) return;
+    const frac = range > 0 ? Math.max(0, Math.min(1, (sk - _boardingKm) / range)) : 0;
     const px = frac * trackW + thumbW/2;
     const tick = document.createElement('div');
     tick.className = 'tick-mark';
@@ -926,7 +937,8 @@ function updateSliderPositions() {
 // ── fare display ───────────────────────────────────────────────────────────
 function updateFareDisplay() {
   const vt = _route?.vehicle_type||'puj';
-  const distKm = _sliderKm;
+  // Distance is from boarding point to drop-off, not absolute route position
+  const distKm = Math.max(0, _sliderKm - _boardingKm);
   _baseFare = calcFare(vt, distKm);
   const discounted = _hasDiscount ? _baseFare * 0.8 : _baseFare;
   const total = discounted + _tip;
@@ -991,25 +1003,27 @@ function buildTickMarks() {
 function buildDropoffModal() {
   const list = document.getElementById('dm-list');
   list.innerHTML = '';
-  
-  // Filter stops that are beyond the current boarding position
-  const availableStops = _stops.filter((s, i) => _stopKms[i] >= _boardingKm);
-  
-  if (!availableStops.length) {
-    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--outline)">No stops available ahead</div>';
+
+  if (!_stops.length) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--outline)">No stops on this route</div>';
     return;
   }
-  
-  availableStops.forEach((stop, idx) => {
-    // Find original index
-    const origIdx = _stops.findIndex(s => s.name === stop.name && s.lat === stop.lat && s.lng === stop.lng);
-    if (origIdx < 0) return;
-    
-    const stopKm = _stopKms[origIdx];
-    const distFromBoarding = stopKm - _boardingKm;
-    const distFromStart = stopKm;
+
+  // Use a small tolerance (50 m) so floating-point stops at boarding km are included
+  const TOL = 0.05;
+  let candidates = _stops
+    .map((s, i) => ({ stop: s, idx: i, km: _stopKms[i] ?? 0 }))
+    .filter(c => c.km >= _boardingKm - TOL);
+
+  // Fallback: if nothing is ahead just show all stops
+  if (!candidates.length) {
+    candidates = _stops.map((s, i) => ({ stop: s, idx: i, km: _stopKms[i] ?? 0 }));
+  }
+
+  candidates.forEach(({ stop, idx, km }) => {
+    const distFromBoarding = Math.max(0, km - _boardingKm);
     const isSelected = stop.name === _dropoffName;
-    
+
     const item = document.createElement('div');
     item.className = 'dm-item' + (isSelected ? ' selected' : '');
     const iconName = isSelected ? 'check_circle' : 'location_on';
@@ -1019,10 +1033,10 @@ function buildDropoffModal() {
         <div class="dm-item-name">${escHtml(stop.name)}</div>
         <div class="dm-item-sub" style="display:flex;gap:12px">
           <span>📍 ${distFromBoarding.toFixed(1)} km away</span>
-          <span>📏 ${stopKm.toFixed(1)} km from start</span>
+          <span>📏 ${km.toFixed(1)} km from start</span>
         </div>
       </div>`;
-    item.addEventListener('click', () => selectStop(stop, origIdx));
+    item.addEventListener('click', () => selectStop(stop, idx));
     list.appendChild(item);
   });
 }
@@ -1084,7 +1098,11 @@ function initMap(plateFall) {
     drawRoute();
     placeBeacon(s, plateFall);
     placeMarkerA();
-    const bPt = coordAtDistance(_sliderKm);
+    // Place B marker — prefer road geometry, fall back to last stop
+    let bPt = coordAtDistance(_sliderKm);
+    if (!bPt && _dropoffLat != null && _dropoffLng != null) {
+      bPt = { lat: _dropoffLat, lng: _dropoffLng };
+    }
     if (bPt) { placeMarkerB(bPt.lat, bPt.lng); }
     drawHighlight();
     fitBounds();
@@ -1240,10 +1258,15 @@ function placeBeacon(s, plateFall) {
 }
 
 function placeMarkerA() {
-  const bPt = coordAtDistance(_boardingKm);
-  if (!bPt) return;
+  let pt = coordAtDistance(_boardingKm);
+  // Fallback: use nearest stop position if no road geometry
+  if (!pt && _stops.length) {
+    const ni = nearestStopIdx(_stops, _boardingKm);
+    pt = { lat: _stops[ni].lat, lng: _stops[ni].lng };
+  }
+  if (!pt) return;
   if (_markerA) _markerA.remove();
-  _markerA = new maplibregl.Marker({element:pinEl('A','#22C55E',5),anchor:'bottom'}).setLngLat([bPt.lng,bPt.lat]).addTo(_map);
+  _markerA = new maplibregl.Marker({element:pinEl('A','#22C55E',5),anchor:'bottom'}).setLngLat([pt.lng,pt.lat]).addTo(_map);
 }
 
 function placeMarkerB(lat, lng) {
