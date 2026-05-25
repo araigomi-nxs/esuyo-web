@@ -729,8 +729,28 @@ function projectToRoute(lat,lng) {
   return bestKm;
 }
 
+// Compute each stop's cumulative km by walking the same road-path segments
+// that buildFlatCoords() uses — guaranteed to be in route order.
 function buildStopKms() {
-  return _stops.map(s => projectToRoute(s.lat, s.lng));
+  if (!_stops.length) return [];
+  const kms = [0];
+  let cum = 0;
+  for (let i = 1; i < _stops.length; i++) {
+    const s = _stops[i];
+    if (Array.isArray(s.roadPathFromPrev) && s.roadPathFromPrev.length > 1) {
+      // roadPathFromPrev is [[lng,lat], ...] starting from previous stop
+      for (let j = 1; j < s.roadPathFromPrev.length; j++) {
+        const a = s.roadPathFromPrev[j - 1];
+        const b = s.roadPathFromPrev[j];
+        cum += hav(+a[1], +a[0], +b[1], +b[0]);
+      }
+    } else {
+      // Fallback: straight line from previous stop
+      cum += hav(_stops[i - 1].lat, _stops[i - 1].lng, s.lat, s.lng);
+    }
+    kms.push(cum);
+  }
+  return kms;
 }
 
 function colorMap(str) {
@@ -771,9 +791,15 @@ async function initBoard() {
   _stops = (_route?.stops||[]).filter(s=>s.lat!=null&&s.lng!=null);
   _flatCoords = buildFlatCoords();
   _totalKm = totalRouteKm(_flatCoords);
-  _stopKms = buildStopKms();
+  _stopKms = buildStopKms();   // now cumulative, guaranteed in route order
+
+  // Jeepney boarding position — projected onto flat coords (same haversine basis)
   _boardingKm = (session.lat&&session.lng) ? projectToRoute(session.lat, session.lng) : 0;
-  _sliderKm = _totalKm; // start at end of route
+  // Clamp to [0, lastStopKm] so the slider range always makes sense
+  const _lastStopKm = _stopKms.length ? _stopKms[_stopKms.length - 1] : _totalKm;
+  _boardingKm = Math.max(0, Math.min(_boardingKm, _lastStopKm));
+  // Start B at the last stop
+  _sliderKm = _lastStopKm;
 
   // Load landmarks near this route
   const { data:landmarks } = await _sb.from('landmarks').select('*').limit(50);
@@ -813,12 +839,13 @@ function populateUI(plateFall) {
   }
   syncDropoffDisplay();
 
-  // Slider
+  // Slider — range is [boardingKm, lastStopKm] so thumb positions stay in route order
+  const lastStopKm = _stopKms.length ? _stopKms[_stopKms.length - 1] : _totalKm;
   if (_stops.length) {
     const slider = document.getElementById('km-slider');
     slider.min = _boardingKm;
-    slider.max = _totalKm;
-    slider.step = Math.max((_totalKm - _boardingKm) / 1000, 0.001);
+    slider.max = lastStopKm;
+    slider.step = Math.max((lastStopKm - _boardingKm) / 1000, 0.001);
     slider.value = _sliderKm;
     slider.addEventListener('input', onSliderInput);
     slider.addEventListener('change', onSliderChange);
@@ -893,7 +920,8 @@ function updateSliderPositions() {
   if (!wrapW) return; // not yet rendered
   const thumbW = 22;
   const trackW = wrapW - thumbW;
-  const range = _totalKm - _boardingKm;
+  const lastStopKm = _stopKms.length ? _stopKms[_stopKms.length - 1] : _totalKm;
+  const range = lastStopKm - _boardingKm;
   const relFrac = range > 0 ? Math.max(0, Math.min(1, (_sliderKm - _boardingKm) / range)) : 0;
 
   // Gradient fractions are relative to the slider's own range [_boardingKm, _totalKm]
@@ -1169,9 +1197,9 @@ function drawRoute() {
 }
 
 function drawHighlight() {
-  // Slice flatCoords from boardingKm to sliderKm
-  const fromKm = Math.min(_boardingKm, _sliderKm);
-  const toKm   = Math.max(_boardingKm, _sliderKm);
+  // Slice flatCoords from boardingKm to sliderKm (both on cumulative-km axis)
+  const fromKm = Math.max(0, Math.min(_boardingKm, _sliderKm));
+  const toKm   = Math.min(_totalKm, Math.max(_boardingKm, _sliderKm));
   const seg    = sliceRouteCoords(fromKm, toKm);
   const geo = {type:'Feature',geometry:{type:'LineString',coordinates:seg}};
   
