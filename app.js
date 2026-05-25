@@ -345,6 +345,7 @@ function _renderLivePasadaWidget(routeId) {
           ${color ? `<span class="lpw-chip lpw-chip--color"><span class="lpw-chip-dot" style="background:${cssCol}"></span>${color}</span>` : ''}
           <span class="lpw-chip lpw-chip--pax">${pax} pax</span>
         </div>
+        <div class="lpw-session-id">${escHtml(s.id)}</div>
       </div>
     </div>`;
   }).join('');

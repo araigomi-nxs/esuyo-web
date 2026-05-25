@@ -1574,6 +1574,11 @@ body.viewer-mode #role-badge {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   margin-bottom: 4px;
 }
+.lpw-session-id {
+  font-size: 0.6rem; color: #9CA3AF; font-family: monospace;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-top: 4px; letter-spacing: 0.01em;
+}
 .lpw-card-chips {
   display: flex; flex-wrap: wrap; gap: 4px;
 }
