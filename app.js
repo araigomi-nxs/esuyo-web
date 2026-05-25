@@ -192,25 +192,67 @@ let _rideClickHandler = null;
 let _lastRideDistKm = null;
 
 // ── Live Pasada ───────────────────────────────────
-let _livePasadaSessions = [];  // all active sessions (full objects)
-let _livePasadaCounts   = {};  // route_id → count (derived)
-let _livePasadaChannel  = null;
+let _livePasadaSessions   = [];  // full session objects with driver info merged
+let _livePasadaCounts     = {};  // route_id → count (derived)
+let _livePasadaChannel    = null;
+let _livePasadaElapsedTimer = null; // refreshes elapsed time every 30s
 
 // Beacon markers currently on the map
 let _pasadaBeaconMarkers  = [];
 let _pasadaBeaconsVisible = false;
 let _pasadaBeaconsRouteId = null;
 
+// Maps a color name/string to a CSS-safe value for colored dots
+function _pasadaColorCss(colorStr) {
+  if (!colorStr) return '#9CA3AF';
+  const map = {
+    red: '#EF4444', blue: '#3B82F6', yellow: '#F59E0B', green: '#22C55E',
+    white: '#E5E7EB', black: '#374151', orange: '#F97316', purple: '#A855F7',
+    brown: '#92400E', gray: '#9CA3AF', grey: '#9CA3AF', silver: '#C0C0C0',
+    maroon: '#991B1B', navy: '#1E3A5F', pink: '#EC4899',
+  };
+  const key = colorStr.toLowerCase().split(/[\s\/\-]/)[0];
+  return map[key] || colorStr; // fall back to raw value (may be a hex already)
+}
+
+function _formatElapsed(startedAt) {
+  if (!startedAt) return '';
+  const totalMins = Math.floor((Date.now() - new Date(startedAt).getTime()) / 60000);
+  if (totalMins < 1)  return '<1m';
+  if (totalMins < 60) return `${totalMins}m`;
+  const h = Math.floor(totalMins / 60), m = totalMins % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
 async function fetchLivePasadaCounts() {
   if (!_supabase) return;
   try {
-    const { data, error } = await _supabase
+    const { data: sessions, error } = await _supabase
       .from('pasada_sessions')
-      .select('id, route_id, vehicle_plate, lat, lng, heading, speed_kmh, passenger_count, started_at')
+      .select('id, route_id, vehicle_plate, lat, lng, heading, speed_kmh, passenger_count, started_at, driver_id')
       .eq('status', 'active');
     if (error) { console.warn('Live pasada fetch:', error); return; }
-    _livePasadaSessions = data || [];
-    _livePasadaCounts   = {};
+
+    // Fetch driver name + details in parallel for any active driver IDs
+    const driverIds = [...new Set((sessions || []).map(s => s.driver_id).filter(Boolean))];
+    let accountMap = {}, detailMap = {};
+    if (driverIds.length > 0) {
+      const [{ data: accs }, { data: dets }] = await Promise.all([
+        _supabase.from('accounts').select('id, full_name').in('id', driverIds),
+        _supabase.from('driver_details').select('id, vehicle_color, cooperative').in('id', driverIds),
+      ]);
+      accountMap = Object.fromEntries((accs  || []).map(a => [a.id, a]));
+      detailMap  = Object.fromEntries((dets  || []).map(d => [d.id, d]));
+    }
+
+    _livePasadaSessions = (sessions || []).map(s => ({
+      ...s,
+      driver_name:   accountMap[s.driver_id]?.full_name    || null,
+      vehicle_color: detailMap[s.driver_id]?.vehicle_color || null,
+      cooperative:   detailMap[s.driver_id]?.cooperative   || null,
+    }));
+
+    _livePasadaCounts = {};
     _livePasadaSessions.forEach(s => {
       if (s.route_id)
         _livePasadaCounts[s.route_id] = (_livePasadaCounts[s.route_id] || 0) + 1;
@@ -226,6 +268,15 @@ function subscribeLivePasada() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'pasada_sessions' },
       () => fetchLivePasadaCounts())
     .subscribe();
+}
+
+// Tick every 30 s so elapsed times in the open widget stay fresh
+function _startElapsedTimer() {
+  if (_livePasadaElapsedTimer) return;
+  _livePasadaElapsedTimer = setInterval(() => {
+    if (activeRouteId && _livePasadaSessions.some(s => s.route_id === activeRouteId))
+      _renderLivePasadaWidget(activeRouteId);
+  }, 30000);
 }
 
 function _applyLivePasadaUI() {
@@ -255,7 +306,7 @@ function _applyLivePasadaUI() {
 
   if (activeRouteId) {
     _renderLivePasadaWidget(activeRouteId);
-    // If beacons are showing, refresh their positions
+    // Refresh beacon positions if currently showing
     if (_pasadaBeaconsVisible && _pasadaBeaconsRouteId === activeRouteId) {
       _removePasadaBeacons();
       _placePasadaBeacons(_livePasadaSessions.filter(s => s.route_id === activeRouteId));
@@ -272,13 +323,27 @@ function _renderLivePasadaWidget(routeId) {
   el.classList.remove('hidden');
 
   const rows = sessions.map(s => {
-    const plate = escHtml(s.vehicle_plate || 'Unknown');
-    const pax   = s.passenger_count != null ? s.passenger_count : '—';
-    const speed = s.speed_kmh != null ? `${Math.round(s.speed_kmh)} km/h` : '';
-    return `<div class="lpw-row">
-      <span class="lpw-plate">🚐 ${plate}</span>
-      <span class="lpw-pax">${pax} pax</span>
-      ${speed ? `<span class="lpw-speed">${speed}</span>` : ''}
+    const plate   = escHtml(s.vehicle_plate  || 'Unknown');
+    const name    = escHtml(s.driver_name    || 'Unknown Driver');
+    const coop    = escHtml(s.cooperative    || '');
+    const color   = escHtml(s.vehicle_color  || '');
+    const pax     = s.passenger_count != null ? s.passenger_count : '—';
+    const elapsed = _formatElapsed(s.started_at);
+    const cssCol  = _pasadaColorCss(s.vehicle_color);
+
+    const metaParts = [
+      color ? `<span class="lpw-color-dot" style="background:${cssCol}"></span>${color}` : '',
+      coop  ? escHtml(s.cooperative) : '',
+      `${pax} pax`,
+    ].filter(Boolean).join(' · ');
+
+    return `<div class="lpw-card">
+      <div class="lpw-card-top">
+        <span class="lpw-plate">🚐 ${plate}</span>
+        ${elapsed ? `<span class="lpw-elapsed">⏱ ${elapsed}</span>` : ''}
+      </div>
+      <div class="lpw-driver-name">${name}</div>
+      <div class="lpw-card-meta">${metaParts}</div>
     </div>`;
   }).join('');
 
@@ -327,25 +392,46 @@ function toggleLivePasadaBeacons(routeId) {
 function _placePasadaBeacons(sessions) {
   sessions.forEach(s => {
     if (s.lat == null || s.lng == null) return;
+
+    const cssCol = _pasadaColorCss(s.vehicle_color);
     const el = document.createElement('div');
     el.className = 'pasada-beacon';
-    el.innerHTML = `<div class="pasada-beacon-ring"></div><div class="pasada-beacon-core">🚐</div>`;
+    // Tint the core with the vehicle color
+    el.innerHTML = `
+      <div class="pasada-beacon-ring" style="background:${cssCol}33"></div>
+      <div class="pasada-beacon-core" style="background:${cssCol}">🚐</div>`;
+
     el.addEventListener('click', ev => {
       ev.stopPropagation();
       if (activePopup) { activePopup.remove(); activePopup = null; }
-      const plate = escHtml(s.vehicle_plate || 'Unknown');
-      const pax   = s.passenger_count != null ? s.passenger_count : '—';
-      const speed = s.speed_kmh != null ? `<div class="pbp-row">${Math.round(s.speed_kmh)} km/h</div>` : '';
-      activePopup = new maplibregl.Popup({ closeButton: false, closeOnClick: true, offset: [0, -28] })
+
+      const plate   = escHtml(s.vehicle_plate || 'Unknown');
+      const name    = escHtml(s.driver_name   || 'Unknown Driver');
+      const coop    = s.cooperative  ? `<div class="pbp-row">🏢 ${escHtml(s.cooperative)}</div>`  : '';
+      const color   = s.vehicle_color
+        ? `<div class="pbp-row"><span class="pbp-color-dot" style="background:${cssCol}"></span>${escHtml(s.vehicle_color)}</div>`
+        : '';
+      const pax     = s.passenger_count != null ? s.passenger_count : '—';
+      const speed   = s.speed_kmh != null ? ` · ${Math.round(s.speed_kmh)} km/h` : '';
+      const elapsed = _formatElapsed(s.started_at);
+
+      activePopup = new maplibregl.Popup({ closeButton: false, closeOnClick: true, offset: [0, -30] })
         .setLngLat([s.lng, s.lat])
         .setHTML(`<div class="pasada-beacon-popup">
-          <div class="pbp-plate"><span class="pbp-dot"></span>🚐 ${plate}</div>
-          <div class="pbp-row">${pax} passengers</div>
-          ${speed}
+          <div class="pbp-plate">
+            <span class="pbp-dot" style="background:${cssCol};box-shadow:0 0 0 3px ${cssCol}33"></span>
+            🚐 ${plate}
+          </div>
+          <div class="pbp-name">${name}</div>
+          ${coop}
+          ${color}
+          <div class="pbp-row">${pax} passengers${speed}</div>
+          ${elapsed ? `<div class="pbp-elapsed">⏱ ${elapsed} into pasada</div>` : ''}
         </div>`)
         .addTo(map);
       activePopup.on('close', () => { activePopup = null; });
     });
+
     const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
       .setLngLat([s.lng, s.lat])
       .addTo(map);
@@ -485,6 +571,7 @@ function _onBothReady() {
   updateRouteCount();
   fetchLivePasadaCounts();
   subscribeLivePasada();
+  _startElapsedTimer();
 }
 
 function showWelcome() {
