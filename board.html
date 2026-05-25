@@ -624,6 +624,7 @@ let _sb        = null;
 let _session   = null;
 let _route     = null;
 let _stops     = [];           // route stops [{lat,lng,name,roadPathFromPrev,...}]
+let _landmarks = [];           // landmarks on/near route
 let _flatCoords = [];          // [[lng,lat],...] full route geometry
 let _stopKms    = [];          // cumulative km for each stop on flat route
 let _totalKm    = 0;           // total route length
@@ -771,6 +772,10 @@ async function initBoard() {
   _stopKms = buildStopKms();
   _boardingKm = (session.lat&&session.lng) ? projectToRoute(session.lat, session.lng) : 0;
   _sliderKm = _totalKm; // start at end of route
+
+  // Load landmarks near this route
+  const { data:landmarks } = await _sb.from('landmarks').select('*').limit(50);
+  _landmarks = (landmarks||[]).filter(l=>l.lat!=null&&l.lng!=null);
 
   populateUI(plateFall);
   initMap(plateFall);
@@ -984,17 +989,37 @@ function buildTickMarks() {
 function buildDropoffModal() {
   const list = document.getElementById('dm-list');
   list.innerHTML = '';
-  _stops.forEach((stop, i) => {
+  
+  // Filter stops that are beyond the current boarding position
+  const availableStops = _stops.filter((s, i) => _stopKms[i] >= _boardingKm);
+  
+  if (!availableStops.length) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--outline)">No stops available ahead</div>';
+    return;
+  }
+  
+  availableStops.forEach((stop, idx) => {
+    // Find original index
+    const origIdx = _stops.findIndex(s => s.name === stop.name && s.lat === stop.lat && s.lng === stop.lng);
+    if (origIdx < 0) return;
+    
+    const stopKm = _stopKms[origIdx];
+    const distFromBoarding = stopKm - _boardingKm;
+    const distFromStart = stopKm;
     const isSelected = stop.name === _dropoffName;
+    
     const item = document.createElement('div');
     item.className = 'dm-item' + (isSelected ? ' selected' : '');
     item.innerHTML = `
       <span class="dm-item-icon" style="color:${isSelected?'var(--primary)':'var(--outline)'}">${isSelected?'check_circle':'location_on'}</span>
-      <div>
+      <div style="flex:1">
         <div class="dm-item-name">${escHtml(stop.name)}</div>
-        ${_stopKms[i]!=null?`<div class="dm-item-sub">${_stopKms[i].toFixed(1)} km from start</div>`:''}
+        <div class="dm-item-sub" style="display:flex;gap:12px">
+          <span>📍 ${distFromBoarding.toFixed(1)} km away</span>
+          <span>📏 ${stopKm.toFixed(1)} km from start</span>
+        </div>
       </div>`;
-    item.addEventListener('click', () => selectStop(stop, i));
+    item.addEventListener('click', () => selectStop(stop, origIdx));
     list.appendChild(item);
   });
 }
@@ -1098,15 +1123,28 @@ function drawRoute() {
     layout:{'line-join':'round','line-cap':'round'},
     paint:{'line-color':col,'line-width':5,'line-opacity':.35}
   });
+  
   // Stop dots
   const stopFeatures = _stops.map((s,i) => ({
     type:'Feature', geometry:{type:'Point',coordinates:[s.lng,s.lat]},
-    properties:{name:s.name||`Stop ${i+1}`}
+    properties:{name:s.name||`Stop ${i+1}`, km: (_stopKms[i]||0).toFixed(1)}
   }));
   _map.addSource('route-stops',{type:'geojson',data:{type:'FeatureCollection',features:stopFeatures}});
   _map.addLayer({id:'route-stop-c',type:'circle',source:'route-stops',
     paint:{'circle-radius':4,'circle-color':col,'circle-opacity':.6,'circle-stroke-width':1.5,'circle-stroke-color':'#fff'}
   });
+
+  // Landmarks
+  const landmarkFeatures = _landmarks.map(l => ({
+    type:'Feature', geometry:{type:'Point',coordinates:[l.lng,l.lat]},
+    properties:{name:l.name||'Landmark', type:'landmark'}
+  }));
+  if (landmarkFeatures.length) {
+    _map.addSource('landmarks',{type:'geojson',data:{type:'FeatureCollection',features:landmarkFeatures}});
+    _map.addLayer({id:'landmarks-layer',type:'circle',source:'landmarks',
+      paint:{'circle-radius':3,'circle-color':'#9CA3AF','circle-opacity':.5,'circle-stroke-width':1,'circle-stroke-color':'#fff'}
+    });
+  }
 }
 
 function drawHighlight() {
@@ -1134,30 +1172,53 @@ function sliceRouteCoords(fromKm, toKm) {
   if (!_flatCoords.length) return [];
   const coords = [];
   let cum = 0;
-  let inRange = false;
+  
   // Add the exact start point
   const startPt = coordAtDistance(fromKm);
   if (startPt) coords.push([startPt.lng, startPt.lat]);
-  for (let i=1;i<_flatCoords.length;i++) {
-    const a=_flatCoords[i-1], b=_flatCoords[i];
-    const seg=hav(a[1],a[0],b[1],b[0]);
-    const cumEnd=cum+seg;
+  
+  // Iterate through all segments in the route
+  for (let i=1; i<_flatCoords.length; i++) {
+    const a = _flatCoords[i-1], b = _flatCoords[i];
+    const seg = hav(a[1], a[0], b[1], b[0]);
+    const cumEnd = cum + seg;
+    
+    // Check if this segment overlaps with the range [fromKm, toKm]
     if (cumEnd > fromKm && cum < toKm) {
-      if (!inRange) inRange=true;
-      if (cumEnd<=toKm) coords.push(b);
+      // If this is a new segment entering the range, handle interpolation
+      if (cum < fromKm && cumEnd > fromKm) {
+        // Partial segment at start - already handled above with startPt
+      }
+      
+      // Add the end point if it's before toKm
+      if (cumEnd <= toKm) {
+        coords.push(b);
+      } else {
+        // Segment crosses the end boundary - interpolate
+        const t = (toKm - cum) / seg;
+        const interpPt = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+        coords.push(interpPt);
+        break;
+      }
     }
-    if (cumEnd>=toKm) break;
-    cum=cumEnd;
+    
+    cum = cumEnd;
+    if (cumEnd >= toKm) break;
   }
-  // Add exact end point
-  const endPt = coordAtDistance(toKm);
-  if (endPt) coords.push([endPt.lng, endPt.lat]);
+  
+  // Ensure we have at least the end point if not already added
+  if (coords.length < 2) {
+    const endPt = coordAtDistance(toKm);
+    if (endPt) coords.push([endPt.lng, endPt.lat]);
+  }
+  
   return coords;
 }
 
-function pinEl(label, color) {
+function pinEl(label, color, zIndex = 10) {
   const el = document.createElement('div');
   el.className = 'pin-marker';
+  el.style.zIndex = zIndex;
   el.innerHTML = `<div class="pin-circle" style="background:${color}">${label}</div><div class="pin-tail" style="background:${color}"></div>`;
   return el;
 }
@@ -1166,6 +1227,7 @@ function placeBeacon(s, plateFall) {
   if (!s.lat||!s.lng) return;
   const el = document.createElement('div');
   el.className='jeep-beacon';
+  el.style.zIndex = 20;
   el.innerHTML='<div class="jeep-beacon-ring"></div><div class="jeep-beacon-core"><img src="assets/jeep.png" alt=""></div>';
   _beaconMarker = new maplibregl.Marker({element:el,anchor:'center'}).setLngLat([s.lng,s.lat]).addTo(_map);
 }
@@ -1174,12 +1236,12 @@ function placeMarkerA() {
   const bPt = coordAtDistance(_boardingKm);
   if (!bPt) return;
   if (_markerA) _markerA.remove();
-  _markerA = new maplibregl.Marker({element:pinEl('A','#22C55E'),anchor:'bottom'}).setLngLat([bPt.lng,bPt.lat]).addTo(_map);
+  _markerA = new maplibregl.Marker({element:pinEl('A','#22C55E',5),anchor:'bottom'}).setLngLat([bPt.lng,bPt.lat]).addTo(_map);
 }
 
 function placeMarkerB(lat, lng) {
   if (_markerB) _markerB.remove();
-  _markerB = new maplibregl.Marker({element:pinEl('B','#EF4444'),anchor:'bottom'}).setLngLat([lng,lat]).addTo(_map);
+  _markerB = new maplibregl.Marker({element:pinEl('B','#EF4444',15),anchor:'bottom'}).setLngLat([lng,lat]).addTo(_map);
 }
 
 function moveMarkerB(lat, lng) {
