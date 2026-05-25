@@ -756,28 +756,12 @@ function projectToRoute(lat,lng) {
   return bestKm;
 }
 
-// Compute each stop's cumulative km by walking the same road-path segments
-// that buildFlatCoords() uses — guaranteed to be in route order.
+// Compute each stop's km by projecting its lat/lng onto the already-built
+// _flatCoords geometry. Using projectToRoute() guarantees the km values are
+// in exactly the same coordinate space as coordAtDistance() and
+// totalRouteKm() — no NaN risk from malformed roadPathFromPrev data.
 function buildStopKms() {
-  if (!_stops.length) return [];
-  const kms = [0];
-  let cum = 0;
-  for (let i = 1; i < _stops.length; i++) {
-    const s = _stops[i];
-    if (Array.isArray(s.roadPathFromPrev) && s.roadPathFromPrev.length > 1) {
-      // roadPathFromPrev is [[lng,lat], ...] starting from previous stop
-      for (let j = 1; j < s.roadPathFromPrev.length; j++) {
-        const a = s.roadPathFromPrev[j - 1];
-        const b = s.roadPathFromPrev[j];
-        cum += hav(+a[1], +a[0], +b[1], +b[0]);
-      }
-    } else {
-      // Fallback: straight line from previous stop
-      cum += hav(_stops[i - 1].lat, _stops[i - 1].lng, s.lat, s.lng);
-    }
-    kms.push(cum);
-  }
-  return kms;
+  return _stops.map(s => projectToRoute(s.lat, s.lng));
 }
 
 function colorMap(str) {
@@ -979,20 +963,22 @@ function onSliderInput() {
   const pt = coordAtDistance(_sliderKm);
   if (pt) { _dropoffLat=pt.lat; _dropoffLng=pt.lng; }
   const ni = nearestStopIdx(_stops, _sliderKm);
-  const dist = Math.abs(_stopKms[ni] - _sliderKm);
-  _dropoffName = dist < 0.2 ? (_stops[ni]?.name||'Custom Point') : 'Custom Point';
+  // Always show nearest stop name while dragging (not "Custom Point" between stops)
+  _dropoffName = _stops[ni]?.name || 'Custom Point';
   syncDropoffDisplay();
   updateSliderPositions();
-  const movePt = pt || (_dropoffLat != null ? { lat: _dropoffLat, lng: _dropoffLng } : null);
+  // Move marker B: prefer road geometry, fall back to nearest stop lat/lng
+  const nearestPt = (ni < _stops.length) ? { lat: _stops[ni].lat, lng: _stops[ni].lng } : null;
+  const movePt = pt || nearestPt || (_dropoffLat != null ? { lat: _dropoffLat, lng: _dropoffLng } : null);
   if (_map && movePt) moveMarkerB(movePt.lat, movePt.lng);
   if (_map) drawHighlight();
 }
 
 function onSliderSnap() {
-  // On release, snap to nearest stop if within 0.2 km
+  // On release, snap to nearest stop if within 0.3 km
   const ni = nearestStopIdx(_stops, _sliderKm);
   const dist = Math.abs(_stopKms[ni] - _sliderKm);
-  if (dist < 0.2 && _stops[ni]) {
+  if (dist < 0.3 && _stops[ni]) {
     _sliderKm = _stopKms[ni];
     _dropoffName = _stops[ni].name;
     _dropoffLat  = _stops[ni].lat;
@@ -1134,7 +1120,8 @@ function buildDropoffModal() {
   }
 
   candidates.forEach(({ stop, idx, km }) => {
-    const distFromBoarding = Math.max(0, km - _boardingKm);
+    const rawDist = km - _boardingKm;
+    const distFromBoarding = isFinite(rawDist) ? Math.max(0, rawDist) : null;
     const isSelected = stop.name === _dropoffName;
 
     // <button> instead of <div> — guaranteed to fire click on all iOS versions
@@ -1142,14 +1129,13 @@ function buildDropoffModal() {
     item.type = 'button';
     item.className = 'dm-item' + (isSelected ? ' selected' : '');
     const iconName = isSelected ? 'check_circle' : 'location_on';
+    const distText = distFromBoarding != null ? `📍 ${distFromBoarding.toFixed(1)} km away` : '';
+    const kmText   = isFinite(km) ? `📏 ${km.toFixed(1)} km from start` : '';
     item.innerHTML = `
       <span class="dm-item-icon" style="font-family:'Material Symbols Outlined',sans-serif;font-style:normal;font-size:20px;font-variation-settings:'FILL' ${isSelected ? 1 : 0},'wght' 400;color:${isSelected?'var(--primary)':'var(--outline)'}">${iconName}</span>
       <div style="flex:1;text-align:left">
         <div class="dm-item-name">${escHtml(stop.name)}</div>
-        <div class="dm-item-sub" style="display:flex;gap:12px">
-          <span>📍 ${distFromBoarding.toFixed(1)} km away</span>
-          <span>📏 ${km.toFixed(1)} km from start</span>
-        </div>
+        ${(distText||kmText) ? `<div class="dm-item-sub" style="display:flex;gap:12px">${distText?`<span>${distText}</span>`:''}${kmText?`<span>${kmText}</span>`:''}</div>` : ''}
       </div>`;
     item.onclick = () => selectStop(stop, idx);
     list.appendChild(item);
@@ -1160,7 +1146,9 @@ function selectStop(stop, idx) {
   _dropoffName = stop.name;
   _dropoffLat  = stop.lat;
   _dropoffLng  = stop.lng;
-  _sliderKm    = _stopKms[idx];
+  // Guard: if stopKm is missing/NaN fall back to projecting the stop onto the route
+  const km = _stopKms[idx];
+  _sliderKm = (km != null && isFinite(km)) ? km : projectToRoute(stop.lat, stop.lng);
   syncDropoffDisplay();
   updateSliderPositions();
   if (_map) { moveMarkerB(stop.lat, stop.lng); drawHighlight(); }
