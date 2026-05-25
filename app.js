@@ -423,7 +423,8 @@ function _placePasadaBeacons(sessions) {
         .setHTML(`<div class="pasada-beacon-popup">
           <div class="pbp-plate">
             <span class="pbp-dot" style="background:${cssCol};box-shadow:0 0 0 3px ${cssCol}33"></span>
-            🚐 ${plate}
+            <img src="assets/jeep.png" class="pbp-jeep-img" alt="">
+            ${plate}
           </div>
           <div class="pbp-name">${name}</div>
           ${coop}

@@ -1644,6 +1644,10 @@ body.viewer-mode #role-badge {
   border-radius: 50%; flex-shrink: 0;
   animation: live-pulse 1.8s ease-in-out infinite;
 }
+.pbp-jeep-img {
+  width: 15px; height: 15px;
+  object-fit: contain; flex-shrink: 0;
+}
 .pbp-name {
   font-size: 0.79rem; font-weight: 600; color: #374151;
   margin-bottom: 5px;
