@@ -486,16 +486,13 @@ function openPasadaQr(plate, sessionId) {
     infoEl.innerHTML = rows;
   }
 
-  const img = document.getElementById('pasada-qr-img');
-  img.style.display = '';
-  img.src = `assets/${encodeURIComponent(plate)}.png`;
-  img.onerror = () => { img.style.display = 'none'; };
+  const boardBtn = document.getElementById('pasada-qr-board-btn');
+  boardBtn.href = `board.html?session=${encodeURIComponent(sessionId)}&plate=${encodeURIComponent(plate)}`;
   document.getElementById('pasada-qr-overlay').classList.remove('hidden');
 }
 
 function closePasadaQr() {
   document.getElementById('pasada-qr-overlay').classList.add('hidden');
-  document.getElementById('pasada-qr-img').src = '';
 }
 
 // ── Geocoding (Nominatim + CORS Proxy) ──────────

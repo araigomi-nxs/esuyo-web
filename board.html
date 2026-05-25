@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Board Jeepney — E-Suyo</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#0046C7',
+            'primary-dark': '#1452d9',
+            'primary-container': '#2b60e6',
+            'on-primary': '#ffffff',
+            'on-primary-container': '#e9ebff',
+            surface: '#faf9fc',
+            'surface-container-low': '#f4f3f6',
+            'surface-container': '#eeedf0',
+            'surface-container-high': '#e8e8eb',
+            'surface-container-highest': '#e3e2e5',
+            'surface-container-lowest': '#ffffff',
+            'on-surface': '#1a1c1e',
+            'on-surface-variant': '#434654',
+            outline: '#737686',
+            'outline-variant': '#c3c5d7',
+            tertiary: '#325d00',
+            'tertiary-container': '#427800',
+            'on-tertiary-fixed-variant': '#2a5000',
+            error: '#ba1a1a',
+          },
+          fontFamily: {
+            headline: ['Lexend', 'sans-serif'],
+            body: ['Plus Jakarta Sans', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .fill-icon { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .selection-chip.active {
+      background-color: #0046C7;
+      color: white;
+      border-color: #0046C7;
+    }
+    .selection-chip { transition: all 0.15s ease; }
+    .custom-select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23737686'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.75rem center;
+      background-size: 1.1em;
+    }
+    @keyframes live-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.2)} }
+    .live-dot { display:inline-block;width:7px;height:7px;border-radius:50%;background:#22C55E;animation:live-pulse 1.6s ease-in-out infinite;flex-shrink:0; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin 0.8s linear infinite; }
+    .jeep-banner { background: linear-gradient(135deg, #0a1628 0%, #0046C7 60%, #1452d9 100%); }
+  </style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen overflow-x-hidden">
+
+  <!-- ── Loading Screen ── -->
+  <div id="loading-screen" class="fixed inset-0 z-50 bg-surface flex flex-col items-center justify-center gap-4">
+    <img src="assets/esuyo_logo.png" alt="E-Suyo" class="w-16 h-16 object-contain rounded-xl">
+    <div class="w-6 h-6 border-2 border-primary border-t-transparent rounded-full spinner"></div>
+    <p class="text-xs font-bold text-outline uppercase tracking-widest">Loading session…</p>
+  </div>
+
+  <!-- ── Error Screen ── -->
+  <div id="error-screen" class="fixed inset-0 z-50 bg-surface hidden flex-col items-center justify-center gap-4 px-8 text-center">
+    <span class="material-symbols-outlined text-5xl text-error">error</span>
+    <h2 class="font-headline text-xl font-bold text-on-surface">Session Not Found</h2>
+    <p class="text-sm text-on-surface-variant" id="error-msg">This pasada session may have ended or the link is invalid.</p>
+    <a href="/" class="mt-2 bg-primary text-white text-sm font-bold py-3 px-6 rounded-full">← Back to Map</a>
+  </div>
+
+  <!-- ── Success Screen ── -->
+  <div id="success-screen" class="fixed inset-0 z-50 bg-surface hidden flex-col items-center justify-center gap-5 px-8 text-center">
+    <div class="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
+      <span class="material-symbols-outlined fill-icon text-5xl text-green-600">check_circle</span>
+    </div>
+    <h2 class="font-headline text-2xl font-extrabold text-on-surface">Boarding Confirmed!</h2>
+    <p class="text-sm text-on-surface-variant">Your fare has been recorded. Show this screen to your driver.</p>
+
+    <div class="w-full max-w-xs bg-surface-container-low rounded-2xl p-5 space-y-3 text-left border border-outline-variant/30">
+      <div class="flex justify-between text-sm">
+        <span class="text-outline font-medium">Jeepney</span>
+        <span class="font-bold text-on-surface" id="suc-plate">—</span>
+      </div>
+      <div class="flex justify-between text-sm">
+        <span class="text-outline font-medium">Drop-off</span>
+        <span class="font-bold text-on-surface" id="suc-dropoff">—</span>
+      </div>
+      <div class="flex justify-between text-sm">
+        <span class="text-outline font-medium">Distance</span>
+        <span class="font-bold text-on-surface" id="suc-dist">—</span>
+      </div>
+      <div class="h-px bg-outline-variant/30"></div>
+      <div class="flex justify-between">
+        <span class="text-outline font-bold uppercase text-xs tracking-wider">Total Paid</span>
+        <span class="font-headline text-xl font-extrabold text-primary" id="suc-fare">—</span>
+      </div>
+      <div class="flex justify-between text-xs text-outline">
+        <span id="suc-discount-label"></span>
+        <span id="suc-time"></span>
+      </div>
+    </div>
+
+    <a href="/" class="mt-1 text-sm font-bold text-primary underline underline-offset-2">← Back to Map</a>
+  </div>
+
+  <!-- ── Main Page ── -->
+  <div id="main-page" class="hidden">
+
+    <!-- Header -->
+    <header class="fixed top-0 w-full z-40 bg-surface/90 backdrop-blur-md border-b border-outline-variant/20 flex items-center gap-3 px-4 py-3 safe-top">
+      <a href="/" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors">
+        <span class="material-symbols-outlined text-primary">arrow_back</span>
+      </a>
+      <div class="flex-1">
+        <h1 class="font-headline font-bold text-base text-on-surface leading-tight">Board Jeepney</h1>
+        <p class="text-[10px] font-bold uppercase tracking-widest text-outline leading-none" id="hdr-route-name">—</p>
+      </div>
+      <div class="flex items-center gap-1.5 bg-green-100 px-2.5 py-1 rounded-full">
+        <span class="live-dot"></span>
+        <span class="text-[10px] font-extrabold text-green-700 uppercase tracking-wider">LIVE</span>
+      </div>
+    </header>
+
+    <!-- Jeepney Banner -->
+    <section class="jeep-banner pt-20 pb-16 px-5">
+      <div class="max-w-md mx-auto">
+        <!-- Plate + color dot -->
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-white/10">
+            <img src="assets/jeep.png" alt="" class="w-7 h-7 object-contain brightness-0 invert">
+          </div>
+          <div>
+            <p class="text-white/60 text-[10px] font-bold uppercase tracking-widest leading-none mb-1">Vehicle Plate</p>
+            <h2 class="font-headline text-2xl font-black text-white tracking-wider" id="ban-plate">—</h2>
+          </div>
+          <div class="ml-auto flex flex-col items-end gap-1">
+            <span class="text-white/50 text-[9px] font-bold uppercase tracking-widest">Color</span>
+            <div class="flex items-center gap-1.5">
+              <span class="w-3 h-3 rounded-full border border-white/30" id="ban-color-dot"></span>
+              <span class="text-white text-xs font-bold" id="ban-color-label">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Driver + pax row -->
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-white/10 rounded-xl p-3">
+            <p class="text-white/50 text-[9px] font-bold uppercase tracking-widest mb-1">Driver</p>
+            <p class="text-white font-bold text-sm leading-tight" id="ban-driver">—</p>
+          </div>
+          <div class="bg-white/10 rounded-xl p-3">
+            <p class="text-white/50 text-[9px] font-bold uppercase tracking-widest mb-1">On Board</p>
+            <p class="text-white font-bold text-sm" id="ban-pax">—</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bottom Sheet -->
+    <section class="relative -mt-8 bg-surface rounded-t-3xl px-5 pt-7 pb-32 z-10 min-h-[60vh]">
+      <div class="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 bg-surface-container-highest rounded-full"></div>
+
+      <div class="max-w-md mx-auto space-y-5">
+
+        <!-- Route label -->
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-[9px] font-bold uppercase tracking-[0.2em] text-outline">Route</p>
+            <h3 class="font-headline text-lg font-extrabold text-on-surface tracking-tight leading-tight" id="sheet-route-name">—</h3>
+          </div>
+          <div class="flex items-center gap-1.5 bg-tertiary-container/10 text-on-tertiary-fixed-variant px-2.5 py-1 rounded-full">
+            <div class="w-1.5 h-1.5 bg-tertiary rounded-full animate-pulse"></div>
+            <span class="text-[9px] font-extrabold font-headline uppercase tracking-wider">Active</span>
+          </div>
+        </div>
+
+        <!-- Fare summary widget -->
+        <div class="bg-primary-container text-on-primary-container p-4 rounded-2xl flex justify-between items-center shadow-sm">
+          <div class="flex flex-col">
+            <span class="text-[9px] font-bold uppercase tracking-widest opacity-70">Distance</span>
+            <div class="flex items-baseline gap-1">
+              <span class="font-headline text-xl font-extrabold" id="disp-dist-val">—</span>
+              <span class="text-xs font-bold opacity-60" id="disp-dist-unit">km</span>
+            </div>
+          </div>
+          <div class="w-px h-8 bg-on-primary-container/20"></div>
+          <div class="flex flex-col items-end">
+            <span class="text-[9px] font-bold uppercase tracking-widest opacity-70">Fare</span>
+            <div class="flex items-baseline gap-0.5">
+              <span class="text-sm font-bold opacity-60">₱</span>
+              <span class="font-headline text-xl font-extrabold" id="disp-fare-val">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Boarding point (fixed) -->
+        <div class="bg-surface-container-low p-4 rounded-xl space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary text-sm">directions_bus</span>
+            <span class="text-[9px] font-bold uppercase tracking-widest text-outline">Boarding Point</span>
+          </div>
+          <div class="font-headline font-bold text-on-surface text-base">Current Jeepney Location</div>
+          <div class="text-xs text-outline" id="ban-coords">Fetching position…</div>
+        </div>
+
+        <!-- Drop-off selector -->
+        <div class="bg-surface-container-low p-4 rounded-xl space-y-1 border border-transparent focus-within:border-primary transition-all" id="dropoff-wrap">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-tertiary text-sm">flag</span>
+            <span class="text-[9px] font-bold uppercase tracking-widest text-outline">Drop-off Stop</span>
+          </div>
+          <div class="relative">
+            <select id="dropoff-select" class="w-full bg-transparent font-headline font-bold text-on-surface text-base border-none p-0 focus:ring-0 custom-select cursor-pointer pr-6">
+              <option value="">Select a stop…</option>
+            </select>
+          </div>
+          <p class="text-[10px] text-outline hidden" id="no-stops-note">No stops available for this route.</p>
+        </div>
+
+        <!-- Fare Discounts -->
+        <div class="space-y-2">
+          <h3 class="text-[10px] font-bold uppercase tracking-widest text-outline px-1">Fare Discount</h3>
+          <div class="grid grid-cols-2 gap-2">
+            <button class="selection-chip active border border-primary/20 rounded-xl py-3 px-4 text-xs font-bold text-center" onclick="setDiscount(this, 0)">Standard</button>
+            <button class="selection-chip border border-primary/20 bg-surface-container-low text-on-surface rounded-xl py-3 px-4 text-xs font-bold text-center" onclick="setDiscount(this, 0.2)">Student</button>
+            <button class="selection-chip border border-primary/20 bg-surface-container-low text-on-surface rounded-xl py-3 px-4 text-xs font-bold text-center" onclick="setDiscount(this, 0.2)">Senior Citizen</button>
+            <button class="selection-chip border border-primary/20 bg-surface-container-low text-on-surface rounded-xl py-3 px-4 text-xs font-bold text-center" onclick="setDiscount(this, 0.2)">PWD</button>
+          </div>
+        </div>
+
+        <!-- Tip -->
+        <div class="space-y-2">
+          <div class="flex justify-between items-center px-1">
+            <h3 class="text-[10px] font-bold uppercase tracking-widest text-outline">Tip Driver <span class="normal-case text-[9px]">(optional)</span></h3>
+            <span class="text-[10px] font-bold text-primary">+₱<span id="tip-display">0</span></span>
+          </div>
+          <div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+            <button class="selection-chip active min-w-[56px] border border-primary/20 rounded-lg py-2 text-xs font-bold text-center" onclick="setTip(this, 0)">None</button>
+            <button class="selection-chip min-w-[56px] border border-primary/20 bg-surface-container-low text-on-surface rounded-lg py-2 text-xs font-bold text-center" onclick="setTip(this, 5)">₱5</button>
+            <button class="selection-chip min-w-[56px] border border-primary/20 bg-surface-container-low text-on-surface rounded-lg py-2 text-xs font-bold text-center" onclick="setTip(this, 10)">₱10</button>
+            <button class="selection-chip min-w-[56px] border border-primary/20 bg-surface-container-low text-on-surface rounded-lg py-2 text-xs font-bold text-center" onclick="setTip(this, 20)">₱20</button>
+          </div>
+        </div>
+
+        <!-- Confirm button -->
+        <div class="pt-2 space-y-3">
+          <button id="confirm-btn" onclick="confirmBoard()"
+            class="w-full bg-primary text-white py-4 px-8 rounded-full font-headline text-lg font-bold shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+            <span id="confirm-btn-text">Confirm &amp; Pay</span>
+            <span class="material-symbols-outlined text-xl">arrow_forward</span>
+          </button>
+          <p class="text-center text-[9px] text-outline-variant font-bold uppercase tracking-[0.1em]">Payment recorded to active pasada session</p>
+        </div>
+
+      </div>
+    </section>
+  </div>
+
+  <!-- Scripts -->
+  <script defer src="config.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+  // ── Wait for all deferred scripts ──────────────────────────────────────────
+  window.addEventListener('load', initBoard);
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  let _supabase   = null;
+  let _session    = null;
+  let _route      = null;
+  let _baseFare   = 0;
+  let _discountRate = 0;
+  let _tip          = 0;
+  let _selectedStop = null;
+  let _distKm       = 0;
+
+  // March 2026 rates (matches main app)
+  const FARE_MATRIX = {
+    puj:          { base: 14.00, baseKm: 4, perKm: 2.00 },
+    mpuj:         { base: 17.00, baseKm: 4, perKm: 2.30 },
+    'pub-city':   { base: 15.00, baseKm: 5, perKm: 2.49 },
+    'pub-city-ac':{ base: 18.00, baseKm: 5, perKm: 2.98 },
+    'uv-express': { base: 25.00, baseKm: 5, perKm: 2.50 },
+  };
+
+  function haversine(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  function calcFare(vehicleType, distKm) {
+    const m = FARE_MATRIX[vehicleType] || FARE_MATRIX['puj'];
+    return m.base + Math.max(0, distKm - m.baseKm) * m.perKm;
+  }
+
+  function showError(msg) {
+    document.getElementById('loading-screen').classList.add('hidden');
+    document.getElementById('error-msg').textContent = msg || 'Something went wrong.';
+    document.getElementById('error-screen').classList.remove('hidden');
+    document.getElementById('error-screen').style.display = 'flex';
+  }
+
+  async function initBoard() {
+    // Init Supabase
+    const cfg = window.ESUYO_CONFIG;
+    if (!cfg || !window.supabase) { showError('App not initialized. Please try again.'); return; }
+    _supabase = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+
+    // Parse URL params
+    const params   = new URLSearchParams(location.search);
+    const sessionId = params.get('session');
+    const plateFallback = params.get('plate') || '';
+
+    if (!sessionId) { showError('No session ID provided.'); return; }
+
+    // Fetch session
+    const { data: session, error: sErr } = await _supabase
+      .from('pasada_sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .single();
+
+    if (sErr || !session) { showError('Session not found or has ended.'); return; }
+    if (session.status !== 'active') { showError('This pasada session has already ended.'); return; }
+
+    _session = session;
+
+    // Fetch route if available
+    if (session.route_id) {
+      const { data: route } = await _supabase
+        .from('routes')
+        .select('*')
+        .eq('id', session.route_id)
+        .single();
+      _route = route || null;
+    }
+
+    populateUI(plateFallback);
+  }
+
+  function populateUI(plateFallback) {
+    const s = _session;
+    const plate  = s.vehicle_plate || plateFallback || 'Unknown';
+    const driver = s.driver_name   || 'Unknown Driver';
+    const pax    = s.passenger_count != null ? `${s.passenger_count} aboard` : '—';
+    const colorStr = s.vehicle_color || '';
+
+    // Header
+    document.getElementById('hdr-route-name').textContent = _route?.name || 'Unknown Route';
+
+    // Banner
+    document.getElementById('ban-plate').textContent  = plate;
+    document.getElementById('ban-driver').textContent = driver;
+    document.getElementById('ban-pax').textContent    = pax;
+
+    const colorMap = { red:'#EF4444', blue:'#3B82F6', yellow:'#F59E0B', green:'#22C55E',
+                       white:'#E5E7EB', black:'#111827', orange:'#F97316', purple:'#8B5CF6' };
+    const colorHex = colorMap[colorStr.toLowerCase()] || (colorStr.startsWith('#') ? colorStr : '#9CA3AF');
+    document.getElementById('ban-color-dot').style.background   = colorHex;
+    document.getElementById('ban-color-label').textContent      = colorStr || '—';
+
+    // Coords
+    if (s.lat && s.lng) {
+      document.getElementById('ban-coords').textContent = `${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}`;
+    }
+
+    // Sheet route name
+    document.getElementById('sheet-route-name').textContent = _route?.name || 'Unknown Route';
+
+    // Populate stops dropdown
+    const sel   = document.getElementById('dropoff-select');
+    const stops = Array.isArray(_route?.stops) ? _route.stops : [];
+
+    if (stops.length > 0) {
+      stops.forEach((stop, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = stop.name || `Stop ${i + 1}`;
+        sel.appendChild(opt);
+      });
+      sel.addEventListener('change', onStopChange);
+    } else {
+      sel.closest('div[id="dropoff-wrap"]').classList.add('hidden');
+      document.getElementById('no-stops-note').classList.remove('hidden');
+      // Flat minimum fare
+      const vt = _route?.vehicle_type || 'puj';
+      _distKm   = 0;
+      _baseFare = FARE_MATRIX[vt]?.base || 14.00;
+      updateFareDisplay();
+    }
+
+    // Show page
+    document.getElementById('loading-screen').classList.add('hidden');
+    const mainPage = document.getElementById('main-page');
+    mainPage.classList.remove('hidden');
+  }
+
+  function onStopChange() {
+    const sel = document.getElementById('dropoff-select');
+    const idx = parseInt(sel.value, 10);
+    if (isNaN(idx)) { _selectedStop = null; _distKm = 0; _baseFare = 0; updateFareDisplay(); return; }
+
+    const stops = _route?.stops || [];
+    _selectedStop = stops[idx];
+
+    if (_session.lat && _session.lng && _selectedStop?.lat && _selectedStop?.lng) {
+      _distKm = haversine(_session.lat, _session.lng, _selectedStop.lat, _selectedStop.lng);
+    } else {
+      _distKm = 0;
+    }
+
+    const vt = _route?.vehicle_type || 'puj';
+    _baseFare = calcFare(vt, _distKm);
+    updateFareDisplay();
+  }
+
+  function updateFareDisplay() {
+    const discounted = _baseFare * (1 - _discountRate);
+    const total      = discounted + _tip;
+
+    const distEl = document.getElementById('disp-dist-val');
+    const unitEl = document.getElementById('disp-dist-unit');
+    if (_distKm > 0) {
+      if (_distKm < 1) { distEl.textContent = Math.round(_distKm * 1000); unitEl.textContent = 'm'; }
+      else             { distEl.textContent = _distKm.toFixed(1); unitEl.textContent = 'km'; }
+    } else {
+      distEl.textContent = '—'; unitEl.textContent = '';
+    }
+
+    document.getElementById('disp-fare-val').textContent = total > 0 ? total.toFixed(2) : '—';
+  }
+
+  function setDiscount(btn, rate) {
+    btn.closest('.grid').querySelectorAll('.selection-chip').forEach(b => {
+      b.classList.remove('active'); b.classList.add('bg-surface-container-low', 'text-on-surface');
+    });
+    btn.classList.add('active'); btn.classList.remove('bg-surface-container-low', 'text-on-surface');
+    _discountRate = rate;
+    updateFareDisplay();
+  }
+
+  function setTip(btn, amount) {
+    btn.closest('.flex').querySelectorAll('.selection-chip').forEach(b => {
+      b.classList.remove('active'); b.classList.add('bg-surface-container-low', 'text-on-surface');
+    });
+    btn.classList.add('active'); btn.classList.remove('bg-surface-container-low', 'text-on-surface');
+    _tip = amount;
+    document.getElementById('tip-display').textContent = amount;
+    updateFareDisplay();
+  }
+
+  async function confirmBoard() {
+    const sel = document.getElementById('dropoff-select');
+    const stops = _route?.stops || [];
+
+    // Validate drop-off
+    const hasStops = stops.length > 0;
+    if (hasStops && !_selectedStop) {
+      sel.closest('div').style.border = '2px solid #EF4444';
+      sel.focus();
+      return;
+    }
+
+    // Calculate final fare
+    const discounted  = _baseFare * (1 - _discountRate);
+    const totalFare   = +(discounted + _tip).toFixed(2);
+
+    if (totalFare <= 0 && _baseFare <= 0) {
+      alert('Please select a drop-off stop first.');
+      return;
+    }
+
+    // Disable button
+    const btn = document.getElementById('confirm-btn');
+    const btnText = document.getElementById('confirm-btn-text');
+    btn.disabled = true;
+    btnText.textContent = 'Processing…';
+
+    try {
+      // INSERT pasada_boardings
+      const boardingPayload = {
+        session_id:     _session.id,
+        fare:           totalFare,
+        is_discount:    _discountRate > 0,
+        payment_method: 'cash',
+        boarded_at:     new Date().toISOString(),
+        from_lat:       _session.lat  || null,
+        from_lng:       _session.lng  || null,
+        to_lat:         _selectedStop?.lat || null,
+        to_lng:         _selectedStop?.lng || null,
+      };
+
+      const { error: bErr } = await _supabase.from('pasada_boardings').insert(boardingPayload);
+      if (bErr) throw bErr;
+
+      // UPDATE pasada_sessions passenger_count++
+      const { error: uErr } = await _supabase
+        .from('pasada_sessions')
+        .update({ passenger_count: (_session.passenger_count || 0) + 1 })
+        .eq('id', _session.id);
+      if (uErr) console.warn('passenger_count update failed:', uErr);
+
+      // Show success
+      const plate   = _session.vehicle_plate || '—';
+      const dropoff = _selectedStop?.name || 'On board';
+      const distStr = _distKm > 0 ? (_distKm < 1 ? `${Math.round(_distKm * 1000)} m` : `${_distKm.toFixed(1)} km`) : '—';
+
+      document.getElementById('suc-plate').textContent   = plate;
+      document.getElementById('suc-dropoff').textContent = dropoff;
+      document.getElementById('suc-dist').textContent    = distStr;
+      document.getElementById('suc-fare').textContent    = `₱${totalFare.toFixed(2)}`;
+      document.getElementById('suc-time').textContent    = new Date().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+      if (_discountRate > 0) {
+        document.getElementById('suc-discount-label').textContent = `${Math.round(_discountRate * 100)}% discount applied`;
+      }
+
+      document.getElementById('main-page').classList.add('hidden');
+      const suc = document.getElementById('success-screen');
+      suc.classList.remove('hidden');
+      suc.style.display = 'flex';
+
+    } catch (err) {
+      console.error('Boarding error:', err);
+      alert('Failed to record boarding. Please try again.\n\n' + (err.message || err));
+      btn.disabled = false;
+      btnText.textContent = 'Confirm & Pay';
+    }
+  }
+  </script>
+</body>
+</html>
