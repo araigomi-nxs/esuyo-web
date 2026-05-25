@@ -85,7 +85,9 @@
     background: var(--surface);
     border-radius: 40px 40px 0 0;
     overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    /* NOTE: -webkit-overflow-scrolling:touch REMOVED — it creates a composited
+       native scroll layer that captures all child touch events, preventing
+       touch-action:none and e.preventDefault() from working on the slider */
     box-shadow: 0 -6px 32px rgba(0,0,0,.1);
   }
   .sheet-inner {
