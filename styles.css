@@ -1479,7 +1479,7 @@ body.viewer-mode #role-badge {
 .vehicle-tag--pub-city-ac{ background: rgba(156,39,176,0.1);  color: #6A1B9A; }
 .vehicle-tag--uv-express { background: rgba(255,152,0,0.12);  color: #E65100; }
 
-/* ── Live Pasada Badge ───────────────────────────── */
+/* ── Live Pasada — shared dot + badge ───────────── */
 @keyframes live-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: 0.45; transform: scale(0.7); }
@@ -1503,19 +1503,104 @@ body.viewer-mode #role-badge {
   white-space: nowrap;
 }
 
-/* ── Route Detail Live Pasada Banner ─────────────── */
+/* ── Live Pasada Widget (detail panel) ──────────── */
 #detail-live-pasada {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 16px;
-  background: rgba(34,197,94,0.08);
-  border-top: 1px solid rgba(34,197,94,0.18);
-  border-bottom: 1px solid rgba(34,197,94,0.18);
-  font-size: 0.8rem; color: #15803D;
-  flex-shrink: 0; line-height: 1.4;
+  margin: 0 12px 4px;
+  border: 1px solid rgba(34,197,94,0.28);
+  border-radius: 10px;
+  background: rgba(34,197,94,0.06);
+  overflow: hidden;
+  flex-shrink: 0;
 }
 #detail-live-pasada.hidden { display: none; }
-#detail-live-pasada .live-dot { width: 9px; height: 9px; }
-#detail-live-pasada strong { font-weight: 700; }
+
+.lpw-header {
+  display: flex; align-items: center; gap: 7px;
+  padding: 9px 12px 6px;
+}
+.lpw-title {
+  font-size: 0.78rem; font-weight: 700; color: #15803D;
+  flex: 1;
+}
+.lpw-count {
+  font-size: 0.68rem; font-weight: 600;
+  background: rgba(34,197,94,0.18); color: #166534;
+  padding: 1px 7px; border-radius: 20px;
+}
+
+.lpw-sessions {
+  padding: 0 12px 4px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.lpw-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.75rem; color: #166534;
+  background: rgba(255,255,255,0.55);
+  border-radius: 6px; padding: 5px 8px;
+}
+.lpw-plate { font-weight: 600; flex: 1; }
+.lpw-pax   { font-size: 0.68rem; opacity: 0.8; }
+.lpw-speed { font-size: 0.68rem; opacity: 0.65; }
+
+.lpw-view-btn {
+  display: block; width: calc(100% - 24px); margin: 6px 12px 10px;
+  padding: 7px 0; border-radius: 7px;
+  background: rgba(34,197,94,0.14); color: #166534;
+  border: 1px solid rgba(34,197,94,0.30);
+  font-size: 0.75rem; font-weight: 600; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.lpw-view-btn:hover { background: rgba(34,197,94,0.24); }
+.lpw-view-btn--active {
+  background: #16A34A; color: #fff;
+  border-color: #16A34A;
+}
+.lpw-view-btn--active:hover { background: #15803D; }
+
+/* ── Pasada Beacon map marker ────────────────────── */
+@keyframes beacon-ring {
+  0%   { transform: scale(0.5); opacity: 0.8; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+.pasada-beacon {
+  position: relative; width: 28px; height: 28px;
+  cursor: pointer;
+}
+.pasada-beacon-ring {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  background: rgba(34,197,94,0.35);
+  animation: beacon-ring 1.6s ease-out infinite;
+}
+.pasada-beacon-core {
+  position: absolute; inset: 4px;
+  background: #16A34A;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.30);
+}
+
+/* ── Beacon click popup ──────────────────────────── */
+.pasada-beacon-popup {
+  min-width: 130px;
+  font-size: 0.78rem;
+  padding: 2px 0;
+}
+.pbp-plate {
+  display: flex; align-items: center; gap: 5px;
+  font-weight: 700; color: #166534; margin-bottom: 4px;
+}
+.pbp-dot {
+  display: inline-block; width: 7px; height: 7px;
+  background: #22C55E; border-radius: 50%;
+  animation: live-pulse 1.8s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.pbp-row {
+  color: #444; font-size: 0.73rem; line-height: 1.6;
+}
 
 /* ── Fare Era Toggle ─────────────────────────────── */
 .fare-era-wrap { position: relative; }

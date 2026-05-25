@@ -192,19 +192,26 @@ let _rideClickHandler = null;
 let _lastRideDistKm = null;
 
 // ── Live Pasada ───────────────────────────────────
-let _livePasadaCounts = {};   // route_id → active session count
-let _livePasadaChannel = null;
+let _livePasadaSessions = [];  // all active sessions (full objects)
+let _livePasadaCounts   = {};  // route_id → count (derived)
+let _livePasadaChannel  = null;
+
+// Beacon markers currently on the map
+let _pasadaBeaconMarkers  = [];
+let _pasadaBeaconsVisible = false;
+let _pasadaBeaconsRouteId = null;
 
 async function fetchLivePasadaCounts() {
   if (!_supabase) return;
   try {
     const { data, error } = await _supabase
       .from('pasada_sessions')
-      .select('route_id')
+      .select('id, route_id, vehicle_plate, lat, lng, heading, speed_kmh, passenger_count, started_at')
       .eq('status', 'active');
     if (error) { console.warn('Live pasada fetch:', error); return; }
-    _livePasadaCounts = {};
-    (data || []).forEach(s => {
+    _livePasadaSessions = data || [];
+    _livePasadaCounts   = {};
+    _livePasadaSessions.forEach(s => {
       if (s.route_id)
         _livePasadaCounts[s.route_id] = (_livePasadaCounts[s.route_id] || 0) + 1;
     });
@@ -222,7 +229,7 @@ function subscribeLivePasada() {
 }
 
 function _applyLivePasadaUI() {
-  // Update badges on all visible route cards
+  // Patch badges on visible route cards without full re-render
   document.querySelectorAll('#route-list .route-item').forEach(el => {
     const rid = el.dataset.id;
     if (!rid) return;
@@ -245,20 +252,110 @@ function _applyLivePasadaUI() {
       badge.remove();
     }
   });
-  // Update detail panel if a route is currently open
-  if (activeRouteId) _updateDetailLiveBanner(activeRouteId);
+
+  if (activeRouteId) {
+    _renderLivePasadaWidget(activeRouteId);
+    // If beacons are showing, refresh their positions
+    if (_pasadaBeaconsVisible && _pasadaBeaconsRouteId === activeRouteId) {
+      _removePasadaBeacons();
+      _placePasadaBeacons(_livePasadaSessions.filter(s => s.route_id === activeRouteId));
+    }
+  }
 }
 
-function _updateDetailLiveBanner(routeId) {
+// ── Live Pasada Widget (detail panel) ─────────────
+function _renderLivePasadaWidget(routeId) {
   const el = document.getElementById('detail-live-pasada');
   if (!el) return;
-  const count = _livePasadaCounts[routeId] || 0;
-  if (count > 0) {
-    el.innerHTML = `<span class="live-dot"></span><strong>${count} jeepney${count !== 1 ? 's' : ''}</strong>&nbsp;currently running this route`;
-    el.classList.remove('hidden');
+  const sessions = _livePasadaSessions.filter(s => s.route_id === routeId);
+  if (sessions.length === 0) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+
+  const rows = sessions.map(s => {
+    const plate = escHtml(s.vehicle_plate || 'Unknown');
+    const pax   = s.passenger_count != null ? s.passenger_count : '—';
+    const speed = s.speed_kmh != null ? `${Math.round(s.speed_kmh)} km/h` : '';
+    return `<div class="lpw-row">
+      <span class="lpw-plate">🚐 ${plate}</span>
+      <span class="lpw-pax">${pax} pax</span>
+      ${speed ? `<span class="lpw-speed">${speed}</span>` : ''}
+    </div>`;
+  }).join('');
+
+  const isViewing = _pasadaBeaconsVisible && _pasadaBeaconsRouteId === routeId;
+  el.innerHTML = `
+    <div class="lpw-header">
+      <span class="live-dot"></span>
+      <span class="lpw-title">Live Pasada</span>
+      <span class="lpw-count">${sessions.length} active</span>
+    </div>
+    <div class="lpw-sessions">${rows}</div>
+    <button class="lpw-view-btn${isViewing ? ' lpw-view-btn--active' : ''}" id="lpw-view-btn">
+      ${isViewing ? '✕ Hide beacons' : '📍 View on map'}
+    </button>`;
+
+  document.getElementById('lpw-view-btn').addEventListener('click', () => {
+    toggleLivePasadaBeacons(routeId);
+  });
+}
+
+// ── Beacon markers ─────────────────────────────────
+function toggleLivePasadaBeacons(routeId) {
+  if (_pasadaBeaconsVisible && _pasadaBeaconsRouteId === routeId) {
+    _removePasadaBeacons();
+    _pasadaBeaconsVisible = false;
+    _pasadaBeaconsRouteId = null;
   } else {
-    el.classList.add('hidden');
+    _removePasadaBeacons();
+    const sessions = _livePasadaSessions.filter(s => s.route_id === routeId);
+    _placePasadaBeacons(sessions);
+    _pasadaBeaconsVisible = sessions.length > 0;
+    _pasadaBeaconsRouteId = routeId;
+    if (sessions.length > 0) {
+      const bounds = new maplibregl.LngLatBounds();
+      sessions.forEach(s => { if (s.lat && s.lng) bounds.extend([s.lng, s.lat]); });
+      if (!bounds.isEmpty()) {
+        const vw = window.innerWidth;
+        const pad = vw < 700 ? 40 : { top: 80, bottom: 80, left: 360, right: 80 };
+        map.fitBounds(bounds, { padding: pad, maxZoom: 16, duration: 900 });
+      }
+    }
   }
+  _renderLivePasadaWidget(routeId);
+}
+
+function _placePasadaBeacons(sessions) {
+  sessions.forEach(s => {
+    if (s.lat == null || s.lng == null) return;
+    const el = document.createElement('div');
+    el.className = 'pasada-beacon';
+    el.innerHTML = `<div class="pasada-beacon-ring"></div><div class="pasada-beacon-core">🚐</div>`;
+    el.addEventListener('click', ev => {
+      ev.stopPropagation();
+      if (activePopup) { activePopup.remove(); activePopup = null; }
+      const plate = escHtml(s.vehicle_plate || 'Unknown');
+      const pax   = s.passenger_count != null ? s.passenger_count : '—';
+      const speed = s.speed_kmh != null ? `<div class="pbp-row">${Math.round(s.speed_kmh)} km/h</div>` : '';
+      activePopup = new maplibregl.Popup({ closeButton: false, closeOnClick: true, offset: [0, -28] })
+        .setLngLat([s.lng, s.lat])
+        .setHTML(`<div class="pasada-beacon-popup">
+          <div class="pbp-plate"><span class="pbp-dot"></span>🚐 ${plate}</div>
+          <div class="pbp-row">${pax} passengers</div>
+          ${speed}
+        </div>`)
+        .addTo(map);
+      activePopup.on('close', () => { activePopup = null; });
+    });
+    const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+      .setLngLat([s.lng, s.lat])
+      .addTo(map);
+    _pasadaBeaconMarkers.push(marker);
+  });
+}
+
+function _removePasadaBeacons() {
+  _pasadaBeaconMarkers.forEach(m => m.remove());
+  _pasadaBeaconMarkers = [];
 }
 
 // ── Geocoding (Nominatim + CORS Proxy) ──────────
@@ -2742,7 +2839,7 @@ function showRouteDetail(routeId) {
 
   document.getElementById('detail-hours').textContent = route.hours || '—';
   document.getElementById('detail-frequency').textContent = route.frequency || '—';
-  _updateDetailLiveBanner(routeId);
+  _renderLivePasadaWidget(routeId);
   document.getElementById('route-detail').classList.add('visible');
   document.getElementById('sidebar-toggle').classList.remove('visible');
   closePlaceSearch();
@@ -2773,6 +2870,9 @@ function hideRouteDetail() {
   activeRouteId = null;
   showAllRoutes();
   document.querySelectorAll('#route-list .route-item').forEach(el => el.classList.remove('active'));
+  _removePasadaBeacons();
+  _pasadaBeaconsVisible = false;
+  _pasadaBeaconsRouteId = null;
 }
 
 // ── Feedback ──────────────────────────────────────
