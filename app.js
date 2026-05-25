@@ -456,8 +456,36 @@ function _removePasadaBeacons() {
 
 // ── Pasada QR Modal ─────────────────────────────────
 function openPasadaQr(plate, sessionId) {
+  const s       = _livePasadaSessions.find(x => x.id === sessionId) || {};
+  const cssCol  = _pasadaColorCss(s.vehicle_color);
+  const elapsed = _formatElapsed(s.started_at);
+  const pax     = s.passenger_count != null ? s.passenger_count : '—';
+  const speed   = s.speed_kmh  != null ? `${Math.round(s.speed_kmh)} km/h` : null;
+  const driver  = s.driver_name  || null;
+  const coop    = s.cooperative  || null;
+  const color   = s.vehicle_color || null;
+
   document.getElementById('pasada-qr-plate').textContent = plate;
   document.getElementById('pasada-qr-sid').textContent   = sessionId;
+
+  // accent bar color
+  const accent = document.getElementById('pasada-qr-accent');
+  if (accent) accent.style.background = cssCol;
+
+  // session info rows
+  const infoEl = document.getElementById('pasada-qr-info');
+  if (infoEl) {
+    const rows = [
+      driver ? `<div class="pqr-row"><span class="pqr-label">Driver</span><span class="pqr-val">${escHtml(driver)}</span></div>` : '',
+      coop   ? `<div class="pqr-row"><span class="pqr-label">Coop</span><span class="pqr-val">${escHtml(coop)}</span></div>` : '',
+      color  ? `<div class="pqr-row"><span class="pqr-label">Color</span><span class="pqr-val"><span class="pqr-color-dot" style="background:${cssCol}"></span>${escHtml(color)}</span></div>` : '',
+      `<div class="pqr-row"><span class="pqr-label">Passengers</span><span class="pqr-val">${pax}</span></div>`,
+      speed  ? `<div class="pqr-row"><span class="pqr-label">Speed</span><span class="pqr-val">${speed}</span></div>` : '',
+      elapsed ? `<div class="pqr-row"><span class="pqr-label">Elapsed</span><span class="pqr-val">${elapsed}</span></div>` : '',
+    ].join('');
+    infoEl.innerHTML = rows;
+  }
+
   const img = document.getElementById('pasada-qr-img');
   img.style.display = '';
   img.src = `assets/${encodeURIComponent(plate)}.png`;
