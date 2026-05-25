@@ -331,7 +331,7 @@ function _renderLivePasadaWidget(routeId) {
     const elapsed = _formatElapsed(s.started_at);
     const cssCol  = _pasadaColorCss(s.vehicle_color);
 
-    return `<div class="lpw-card">
+    return `<div class="lpw-card lpw-card--qr" data-plate="${escHtml(s.vehicle_plate || 'Unknown')}" data-sid="${escHtml(s.id)}">
       <div class="lpw-card-accent" style="background:${cssCol}"></div>
       <img src="assets/jeep.png" class="lpw-card-jeep" alt="">
       <div class="lpw-card-body">
@@ -364,6 +364,11 @@ function _renderLivePasadaWidget(routeId) {
 
   document.getElementById('lpw-view-btn').addEventListener('click', () => {
     toggleLivePasadaBeacons(routeId);
+  });
+
+  el.querySelector('.lpw-sessions').addEventListener('click', e => {
+    const card = e.target.closest('.lpw-card--qr');
+    if (card) openPasadaQr(card.dataset.plate, card.dataset.sid);
   });
 }
 
@@ -447,6 +452,22 @@ function _placePasadaBeacons(sessions) {
 function _removePasadaBeacons() {
   _pasadaBeaconMarkers.forEach(m => m.remove());
   _pasadaBeaconMarkers = [];
+}
+
+// ── Pasada QR Modal ─────────────────────────────────
+function openPasadaQr(plate, sessionId) {
+  document.getElementById('pasada-qr-plate').textContent = plate;
+  document.getElementById('pasada-qr-sid').textContent   = sessionId;
+  const img = document.getElementById('pasada-qr-img');
+  img.style.display = '';
+  img.src = `assets/${encodeURIComponent(plate)}.png`;
+  img.onerror = () => { img.style.display = 'none'; };
+  document.getElementById('pasada-qr-overlay').classList.remove('hidden');
+}
+
+function closePasadaQr() {
+  document.getElementById('pasada-qr-overlay').classList.add('hidden');
+  document.getElementById('pasada-qr-img').src = '';
 }
 
 // ── Geocoding (Nominatim + CORS Proxy) ──────────
@@ -5059,6 +5080,8 @@ function bindEvents() {
   initAllRatings();
   document.getElementById('qr-modal-close').addEventListener('click', closeQrModal);
   document.getElementById('qr-modal-overlay').addEventListener('click', e => { if (e.target.id === 'qr-modal-overlay') closeQrModal(); });
+  document.getElementById('pasada-qr-close').addEventListener('click', closePasadaQr);
+  document.getElementById('pasada-qr-overlay').addEventListener('click', e => { if (e.target.id === 'pasada-qr-overlay') closePasadaQr(); });
   document.getElementById('qr-btn-download').addEventListener('click', downloadQr);
   document.getElementById('sim-end-btn').addEventListener('click', stopSimulation);
   document.getElementById('sim-play-pause').addEventListener('click', _simTogglePause);

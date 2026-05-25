@@ -1535,6 +1535,8 @@ body.viewer-mode #role-badge {
 }
 
 /* ── Individual driver card ─── */
+.lpw-card--qr { cursor: pointer; }
+.lpw-card--qr:hover { background: #F9FAFB; }
 .lpw-card {
   display: flex; align-items: stretch;
   background: #fff;
@@ -1670,6 +1672,53 @@ body.viewer-mode #role-badge {
   margin-top: 5px; padding-top: 5px;
   border-top: 1px solid rgba(0,0,0,0.08);
   font-size: 0.68rem; color: #888;
+}
+
+/* ── Pasada QR Modal ─────────────────────────────── */
+#pasada-qr-overlay {
+  position: fixed; inset: 0; z-index: 9000;
+  background: rgba(0,0,0,0.55); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+#pasada-qr-overlay.hidden { display: none; }
+.pasada-qr-modal {
+  background: #fff; border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  padding: 24px 28px 20px;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 14px; max-width: 320px; width: 100%;
+  position: relative;
+}
+.pasada-qr-close {
+  position: absolute; top: 14px; right: 16px;
+  background: none; border: none; font-size: 1rem;
+  color: #9CA3AF; cursor: pointer; line-height: 1; padding: 4px;
+}
+.pasada-qr-close:hover { color: #374151; }
+.pasada-qr-header {
+  display: flex; align-items: center; gap: 10px;
+}
+.pasada-qr-jeep-icon {
+  width: 28px; height: 28px; object-fit: contain;
+}
+.pasada-qr-plate {
+  font-size: 1.25rem; font-weight: 800; color: #111;
+  letter-spacing: 0.05em; font-family: 'Lexend', sans-serif;
+}
+.pasada-qr-img-wrap {
+  background: #F9FAFB; border-radius: 12px;
+  padding: 12px; border: 1px solid #E5E7EB;
+}
+.pasada-qr-img {
+  width: 220px; height: 220px; object-fit: contain; display: block;
+}
+.pasada-qr-hint {
+  font-size: 0.75rem; color: #6B7280; font-weight: 500;
+}
+.pasada-qr-sid {
+  font-size: 0.6rem; color: #9CA3AF; font-family: monospace;
+  word-break: break-all; text-align: center; max-width: 100%;
 }
 
 /* ── Fare Era Toggle ─────────────────────────────── */
