@@ -1156,10 +1156,14 @@ function drawHighlight() {
   const toKm   = Math.max(_boardingKm, _sliderKm);
   const seg    = sliceRouteCoords(fromKm, toKm);
   const geo = {type:'Feature',geometry:{type:'LineString',coordinates:seg}};
-  try {_map.removeLayer('hl-glow');}catch{}
-  try {_map.removeLayer('hl-line');}catch{}
-  try {_map.removeSource('hl-src');}catch{}
+  
+  // Only remove if they exist
+  if (_map.getLayer('hl-line')) _map.removeLayer('hl-line');
+  if (_map.getLayer('hl-glow')) _map.removeLayer('hl-glow');
+  if (_map.getSource('hl-src')) _map.removeSource('hl-src');
+  
   if (seg.length < 2) return;
+  
   _map.addSource('hl-src',{type:'geojson',data:geo});
   _map.addLayer({id:'hl-glow',type:'line',source:'hl-src',
     layout:{'line-join':'round','line-cap':'round'},
