@@ -1715,14 +1715,18 @@ body.viewer-mode #role-badge {
   background: #DCFCE7; border: 1px solid rgba(34,197,94,0.3);
   border-radius: 99px; padding: 2px 7px; letter-spacing: 0.04em;
 }
-.pasada-qr-board-btn {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  background: #0046C7; color: #fff;
-  font-family: 'Lexend', sans-serif; font-weight: 700; font-size: 0.95rem;
-  border-radius: 99px; padding: 14px 28px; width: 100%;
-  text-decoration: none; transition: background 0.15s;
+.pasada-qr-img-link { display: block; }
+.pasada-qr-img-wrap {
+  background: #F9FAFB; border-radius: 12px;
+  padding: 10px; border: 1px solid #E5E7EB;
+  transition: box-shadow 0.15s;
 }
-.pasada-qr-board-btn:hover { background: #003aaa; }
+.pasada-qr-img-link:hover .pasada-qr-img-wrap {
+  box-shadow: 0 0 0 3px #0046C733;
+}
+.pasada-qr-img {
+  width: 210px; height: 210px; object-fit: contain; display: block;
+}
 .pasada-qr-hint {
   font-size: 0.72rem; color: #6B7280; font-weight: 500;
 }
