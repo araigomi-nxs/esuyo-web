@@ -3,778 +3,1253 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>Board Jeepney — E-Suyo</title>
+  <title>Select Drop Off — E-Suyo</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
   <link href="maplibre-gl.css" rel="stylesheet">
 
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --primary:        #0046C7;
-      --primary-dim:    #1452d9;
-      --surface:        #faf9fc;
-      --surface-low:    #f4f3f6;
-      --surface-mid:    #eeedf0;
-      --surface-high:   #e8e8eb;
-      --on-surface:     #1a1c1e;
-      --on-surface-var: #434654;
-      --outline:        #737686;
-      --outline-var:    #c3c5d7;
-      --tertiary:       #325d00;
-      --tertiary-con:   #427800;
-      --error:          #ba1a1a;
-      --green:          #16A34A;
-      --orange:         #f97316;
-    }
-    html, body { height: 100%; width: 100%; overflow: hidden; }
-    body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--surface); color: var(--on-surface); }
-    .hl { font-family: 'Lexend', sans-serif; }
-    .ms { font-family: 'Material Symbols Outlined'; font-style: normal; font-size: 20px; line-height: 1;
-          font-variation-settings: 'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
-    .ms.fill { font-variation-settings: 'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --hdr-h:     52px;
+    --map-h:     320px;
+    --primary:   #0046C7;
+    --primary-d: #1452d9;
+    --primary-c: #DBEAFE;  /* primaryContainer */
+    --surface:   #fafafa;
+    --surf-low:  #f4f3f6;
+    --surf-mid:  #eeedf0;
+    --surf-hi:   #e2e1e4;
+    --on-surf:   #1a1c1e;
+    --on-sv:     #434654;
+    --outline:   #737686;
+    --out-var:   #c3c5d7;
+    --tertiary:  #325d00;
+    --green:     #22C55E;
+    --red:       #EF4444;
+  }
+  html, body { height: 100%; width: 100%; overflow: hidden; background: var(--surface); }
+  body { font-family: 'Plus Jakarta Sans', sans-serif; color: var(--on-surf); }
 
-    /* ── Fixed header ─────────────────────────── */
-    #hdr {
-      position: fixed; top: 0; left: 0; right: 0; z-index: 300;
-      height: 52px;
-      display: flex; align-items: center; gap: 10px; padding: 0 12px;
-      background: rgba(250,249,252,.92); backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--outline-var);
-    }
-    #hdr a { display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;text-decoration:none;color:var(--primary); }
-    #hdr a:hover { background:var(--surface-mid); }
-    #hdr-title { flex:1; }
-    #hdr-title h1 { font-family:'Lexend',sans-serif;font-weight:700;font-size:.9rem;line-height:1.1;color:var(--on-surface); }
-    #hdr-title p  { font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--outline);margin-top:1px; }
-    .live-chip { display:flex;align-items:center;gap:5px;background:#DCFCE7;border:1px solid rgba(34,197,94,.3);border-radius:99px;padding:3px 9px; }
-    .live-chip span:last-child { font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#15803D; }
-    @keyframes lp { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.2)} }
-    .live-dot { width:7px;height:7px;border-radius:50%;background:#22C55E;animation:lp 1.6s ease-in-out infinite;flex-shrink:0; }
+  /* ── Header ───────────────────────────────── */
+  #hdr {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+    height: var(--hdr-h);
+    display: flex; align-items: center; gap: 8px; padding: 0 12px;
+    background: rgba(250,250,250,.92); backdrop-filter: blur(14px);
+  }
+  #hdr-back {
+    width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; text-decoration: none; color: var(--primary);
+    font-family: 'Material Symbols Outlined', sans-serif; font-size: 20px;
+    font-style: normal; font-variation-settings: 'FILL' 0,'wght' 400;
+    flex-shrink: 0;
+  }
+  #hdr-back:hover { background: var(--surf-mid); }
+  #hdr-title {
+    flex: 1; min-width: 0;
+    font-family: 'Lexend', sans-serif; font-weight: 700; font-size: .95rem;
+    color: var(--primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .hdr-plate-pill {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(0,70,199,.07); border-radius: 99px; padding: 4px 10px;
+    font-family: 'Lexend', sans-serif; font-weight: 800; font-size: .75rem; color: var(--primary);
+    flex-shrink: 0;
+  }
+  @keyframes lp { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.3)} }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: lp 1.6s ease-in-out infinite; flex-shrink: 0; }
 
-    /* ── Map ──────────────────────────────────── */
-    #map { position:fixed; top:52px; left:0; right:0; height:280px; z-index:1; }
+  /* ── Map ──────────────────────────────────── */
+  #map {
+    position: fixed; top: var(--hdr-h); left: 0; right: 0;
+    height: var(--map-h); z-index: 1;
+  }
+  .custom-mode-toast {
+    position: absolute; bottom: 52px; left: 50%; transform: translateX(-50%);
+    background: rgba(34,197,94,.85); border-radius: 99px;
+    padding: 8px 20px; display: flex; align-items: center; gap: 6px;
+    pointer-events: none;
+  }
+  .custom-mode-toast span { font-family:'Lexend',sans-serif; font-size:.75rem; font-weight:600; color:#fff; }
 
-    /* ── Bottom sheet ─────────────────────────── */
-    #sheet {
-      position:fixed; left:0; right:0; bottom:0; z-index:200;
-      top: 300px; /* map bottom - 32px overlap */
-      background: var(--surface);
-      border-radius: 24px 24px 0 0;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      box-shadow: 0 -4px 24px rgba(0,0,0,.08);
-      padding: 10px 0 100px;
-    }
-    .pull { width:40px;height:4px;background:var(--surface-high);border-radius:99px;margin:0 auto 14px; }
+  /* ── Bottom Sheet ─────────────────────────── */
+  #sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 200;
+    /* top = header + map - 40px overlap */
+    top: calc(var(--hdr-h) + var(--map-h) - 40px);
+    background: var(--surface);
+    border-radius: 40px 40px 0 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    box-shadow: 0 -6px 32px rgba(0,0,0,.1);
+  }
+  .sheet-inner {
+    padding: 0 24px 120px;
+  }
 
-    /* ── Jeepney banner inside sheet ──────────── */
-    #jeep-banner {
-      margin: 0 14px 14px;
-      border-radius: 16px;
-      padding: 14px;
-      background: linear-gradient(135deg,#0a1628 0%,#0046C7 65%,#1452d9 100%);
-      display: flex; align-items: center; gap: 12px;
-    }
-    #jeep-banner img { width:36px;height:36px;object-fit:contain;filter:brightness(0) invert(1); }
-    .ban-plate { font-family:'Lexend',sans-serif;font-weight:900;font-size:1.25rem;color:#fff;letter-spacing:.06em; }
-    .ban-sub   { font-size:.65rem;font-weight:600;color:rgba(255,255,255,.6);margin-top:2px; }
-    .ban-meta  { display:flex;gap:8px;margin-left:auto;align-items:center; }
-    .ban-pax   { background:rgba(255,255,255,.12);border-radius:8px;padding:5px 9px;text-align:center; }
-    .ban-pax-num { font-family:'Lexend',sans-serif;font-weight:800;font-size:1rem;color:#fff; }
-    .ban-pax-lbl { font-size:.55rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.55); }
+  /* Pull handle */
+  .pull {
+    width: 48px; height: 6px;
+    background: var(--surf-hi); border-radius: 99px;
+    margin: 16px auto 24px;
+  }
 
-    /* ── Section padding ──────────────────────── */
-    .sec { padding: 0 14px; margin-bottom: 14px; }
+  /* ── Compact jeepney banner ───────────────── */
+  .jeep-banner-compact {
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(135deg,#0a1628 0%,#0046C7 65%,#1452d9 100%);
+    border-radius: 16px; padding: 12px 14px; margin-bottom: 20px;
+  }
+  .jbc-img { width: 28px; height: 28px; object-fit: contain; filter: brightness(0) invert(1); }
+  .jbc-plate { font-family:'Lexend',sans-serif; font-weight: 900; font-size: 1rem; color: #fff; letter-spacing:.06em; }
+  .jbc-sub { font-size: .6rem; font-weight: 600; color: rgba(255,255,255,.55); margin-top: 1px; }
+  .jbc-live { display: flex; align-items: center; gap: 5px; margin-left: auto;
+               background: rgba(255,255,255,.1); border-radius: 99px; padding: 3px 9px; }
+  .jbc-live span { font-size: .58rem; font-weight: 800; text-transform: uppercase; color: #fff; }
 
-    /* ── Route label ──────────────────────────── */
-    .route-hdr { display:flex;align-items:center;justify-content:space-between;margin-bottom:4px; }
-    .route-hdr-lbl { font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.15em;color:var(--outline); }
-    .route-hdr-name { font-family:'Lexend',sans-serif;font-weight:800;font-size:1.1rem;color:var(--on-surface);letter-spacing:-.02em;line-height:1.2; }
-    .active-badge { display:flex;align-items:center;gap:4px;background:rgba(50,93,0,.08);color:#2a5000;border-radius:99px;padding:3px 9px; }
-    .active-badge .dot { width:6px;height:6px;border-radius:50%;background:var(--tertiary);animation:lp 2s ease-in-out infinite; }
-    .active-badge span:last-child { font-size:.55rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em; }
+  /* ── Route overview ───────────────────────── */
+  .route-lbl {
+    font-size: .62rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .15em; color: var(--outline);
+  }
+  .route-name {
+    font-family: 'Lexend', sans-serif; font-weight: 800; font-size: 1.4rem;
+    color: var(--on-surf); letter-spacing: -.02em; line-height: 1.2; margin-top: 2px;
+  }
+  .route-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+  .active-pill {
+    display: flex; align-items: center; gap: 5px;
+    background: rgba(50,93,0,.08); border-radius: 99px; padding: 3px 10px; margin-top: 2px;
+  }
+  .active-pill .adot { width: 6px; height: 6px; border-radius: 50%; background: var(--tertiary); animation: lp 2s ease-in-out infinite; }
+  .active-pill span { font-size: .55rem; font-weight: 800; text-transform: uppercase; color: var(--tertiary); }
 
-    /* ── Fare widget ──────────────────────────── */
-    .fare-widget {
-      background: var(--primary); color:#fff;
-      border-radius:16px; padding:14px 16px;
-      display:flex; justify-content:space-between; align-items:center;
-    }
-    .fw-col label { font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;opacity:.65;display:block;margin-bottom:2px; }
-    .fw-col .val  { font-family:'Lexend',sans-serif;font-weight:800;font-size:1.4rem;line-height:1; }
-    .fw-col .unit { font-size:.7rem;font-weight:700;opacity:.55;margin-left:2px; }
-    .fw-divider   { width:1px;height:32px;background:rgba(255,255,255,.2); }
+  /* ── Slider section ───────────────────────── */
+  .slider-section { margin-bottom: 16px; }
+  .slider-section-label {
+    font-family: 'Lexend', sans-serif; font-size: .72rem; font-weight: 700;
+    color: var(--outline); margin-bottom: 4px;
+  }
+  .slider-hint {
+    font-size: .68rem; color: var(--outline); font-weight: 600; margin-bottom: 8px;
+  }
+  /* Custom slider track container */
+  .slider-wrap {
+    position: relative; width: 100%; user-select: none;
+    padding-top: 34px; /* space for price bubble (24px) + gap (10px) */
+  }
+  /* Price bubble */
+  .price-bubble {
+    position: absolute; top: 0;
+    background: var(--primary); border-radius: 8px; padding: 3px 8px;
+    font-family: 'Lexend', sans-serif; font-size: .7rem; font-weight: 700; color: #fff;
+    white-space: nowrap; transition: left .05s;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+  /* Track markers (A/B circles) */
+  .track-marker {
+    position: absolute; width: 16px; height: 16px; border-radius: 50%;
+    border: 2.5px solid #fff; display: flex; align-items: center; justify-content: center;
+    font-family: 'Lexend', sans-serif; font-size: 7px; font-weight: 800; color: #fff;
+    pointer-events: none; z-index: 5; top: 56px; /* 34px padding + 22px = above thumb center */
+    transform: translateX(0);
+    box-shadow: 0 1px 4px rgba(0,0,0,.25);
+  }
+  .track-marker.a { background: var(--green); }
+  .track-marker.b { background: var(--red); }
+  /* Tick mark */
+  .tick-mark {
+    position: absolute; width: 2px; background: rgba(115,118,134,.4);
+    border-radius: 1px; pointer-events: none;
+    top: 80px; height: 8px; /* below the range input */
+    transform: translateX(-50%);
+  }
+  /* Range input */
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 5px; border-radius: 3px; outline: none; cursor: pointer;
+    background: linear-gradient(to right, var(--primary) var(--pct,50%), rgba(115,118,134,.22) var(--pct,50%));
+    position: relative; z-index: 4; margin: 0;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--primary); border: 3px solid #fff;
+    box-shadow: 0 2px 8px rgba(0,70,199,.35); cursor: pointer;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--primary); border: 3px solid #fff;
+    box-shadow: 0 2px 8px rgba(0,70,199,.35); cursor: pointer;
+  }
+  /* Space for ticks below slider */
+  .slider-ticks-space { height: 20px; }
 
-    /* ── Points panel ─────────────────────────── */
-    .points-panel { background:var(--surface-low);border-radius:14px;padding:12px 14px; }
-    .point-row { display:flex;align-items:flex-start;gap:10px; }
-    .point-badge { width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Lexend',sans-serif;font-weight:800;font-size:.7rem;flex-shrink:0;margin-top:1px; }
-    .point-badge.a { background:#DCFCE7;color:#15803D; }
-    .point-badge.b { background:#FEE2E2;color:#B91C1C; }
-    .point-info label { font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--outline);display:block;margin-bottom:2px; }
-    .point-info .name { font-family:'Lexend',sans-serif;font-weight:700;font-size:.9rem;color:var(--on-surface);line-height:1.2; }
-    .point-info .sub  { font-size:.65rem;color:var(--outline);margin-top:2px;line-height:1.3; }
-    .point-connector { display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 0;margin-left:10px; }
-    .point-connector .dot { width:3px;height:3px;border-radius:50%;background:var(--outline-var); }
+  /* ── Input pods ───────────────────────────── */
+  .input-pod {
+    background: var(--surf-low); border-radius: 16px;
+    padding: 16px 14px; display: flex; align-items: center; gap: 12px;
+    margin-bottom: 12px;
+  }
+  .pod-circle {
+    width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Lexend', sans-serif; font-size: 1rem; font-weight: 800; color: #fff;
+  }
+  .pod-circle.a { background: rgba(34,197,94,.15); color: var(--green); font-size:.95rem; }
+  .pod-circle.b { background: var(--red); color: #fff; }
+  .pod-info { flex: 1; min-width: 0; }
+  .pod-label {
+    font-size: .62rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--outline); margin-bottom: 2px;
+  }
+  .pod-value {
+    font-family: 'Lexend', sans-serif; font-weight: 600; font-size: .88rem;
+    color: var(--on-surf); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pod-value.green { color: var(--tertiary); }
+  /* Spinner for loading */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .pod-spinner {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2.5px solid var(--surf-hi); border-top-color: var(--green);
+    animation: spin .7s linear infinite;
+  }
+  /* B pod: dropdown + custom button */
+  .b-pod-wrap {
+    background: var(--surf-low); border-radius: 16px;
+    border: 1px solid rgba(0,70,199,.25);
+    display: flex; align-items: stretch; margin-bottom: 20px;
+    overflow: hidden; cursor: pointer;
+  }
+  .b-pod-left {
+    display: flex; align-items: center; gap: 12px; padding: 16px 14px;
+    flex: 1; min-width: 0;
+  }
+  .b-pod-arrow {
+    font-family: 'Material Symbols Outlined', sans-serif; font-style: normal;
+    font-size: 18px; font-variation-settings: 'FILL' 0,'wght' 400;
+    color: var(--tertiary); flex-shrink: 0;
+  }
+  .b-pod-divider { width: 1px; background: rgba(115,118,134,.15); flex-shrink: 0; }
+  .b-pod-custom {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 12px 14px; gap: 2px; cursor: pointer; flex-shrink: 0;
+    transition: background .15s;
+  }
+  .b-pod-custom:hover { background: var(--surf-mid); }
+  .b-pod-custom.on { background: rgba(0,70,199,.08); }
+  .custom-circle {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Material Symbols Outlined', sans-serif; font-style: normal;
+    font-size: 18px; font-variation-settings: 'FILL' 0,'wght' 400;
+    color: #fff; background: var(--tertiary); transition: background .15s;
+  }
+  .b-pod-custom.on .custom-circle { background: var(--primary); }
+  .custom-lbl { font-size: .56rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--outline); }
+  .custom-val { font-size: .68rem; font-weight: 700; color: var(--outline); }
+  .b-pod-custom.on .custom-val { color: var(--primary); }
 
-    /* ── Stop slider ──────────────────────────── */
-    .slider-section { background:var(--surface-low);border-radius:14px;padding:14px; }
-    .slider-top { display:flex;justify-content:space-between;align-items:center;margin-bottom:8px; }
-    .slider-top label { font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--outline); }
-    #stop-name-pill { font-size:.75rem;font-weight:700;color:var(--primary);background:rgba(0,70,199,.08);border-radius:99px;padding:3px 10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
-    input[type=range] {
-      -webkit-appearance:none; appearance:none;
-      width:100%; height:6px; border-radius:3px;
-      background: linear-gradient(to right, var(--primary) var(--pct,50%), var(--outline-var) var(--pct,50%));
-      outline:none; cursor:pointer;
-    }
-    input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance:none; width:20px;height:20px;border-radius:50%;
-      background:var(--primary);border:3px solid #fff;
-      box-shadow:0 2px 6px rgba(0,70,199,.35);
-    }
-    input[type=range]::-moz-range-thumb {
-      width:20px;height:20px;border-radius:50%;
-      background:var(--primary);border:3px solid #fff;
-      box-shadow:0 2px 6px rgba(0,70,199,.35);
-    }
-    .stop-ticks { display:flex;justify-content:space-between;margin-top:6px;gap:2px;overflow:hidden; }
-    .stop-tick  { font-size:.52rem;color:var(--outline);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:48px;text-align:center;flex:1; }
-    .stop-tick.active { color:var(--primary);font-weight:800; }
+  /* ── Summary card ─────────────────────────── */
+  .summary-card {
+    background: var(--primary); border-radius: 16px;
+    padding: 16px 20px; display: flex; align-items: flex-start; gap: 8px;
+    margin-bottom: 20px;
+  }
+  .sc-left { flex: 1; min-width: 0; }
+  .sc-dest {
+    font-family: 'Lexend', sans-serif; font-weight: 700; font-size: 1rem;
+    color: #fff; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sc-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .sc-meta-item { display: flex; align-items: center; gap: 3px; }
+  .sc-meta-icon {
+    font-family: 'Material Symbols Outlined', sans-serif; font-style: normal;
+    font-size: 13px; font-variation-settings: 'FILL' 0,'wght' 400; color: rgba(255,255,255,.65);
+  }
+  .sc-meta-txt { font-size: .72rem; color: rgba(255,255,255,.65); }
+  .sc-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+  .sc-badges { display: flex; align-items: center; gap: 5px; }
+  .sc-badge {
+    border-radius: 6px; padding: 2px 6px;
+    font-family: 'Lexend', sans-serif; font-size: .6rem; font-weight: 700; color: #fff;
+  }
+  .sc-badge.disc { background: #4ADE80; }
+  .sc-badge.tip  { background: #FB923C; }
+  .sc-fare {
+    font-family: 'Lexend', sans-serif; font-weight: 700; font-size: 1.25rem; color: #fff;
+  }
+  .sc-base-fare {
+    font-size: .65rem; color: rgba(255,255,255,.55);
+    text-decoration: line-through;
+  }
 
-    /* ── Discount chips ───────────────────────── */
-    .chip-grid { display:grid;grid-template-columns:1fr 1fr;gap:8px; }
-    .chip {
-      border:1px solid rgba(0,70,199,.18);border-radius:12px;
-      padding:10px 8px;font-size:.75rem;font-weight:700;text-align:center;
-      background:var(--surface-low);color:var(--on-surface);cursor:pointer;
-      transition:all .15s;
-    }
-    .chip.active { background:var(--primary);color:#fff;border-color:var(--primary); }
+  /* ── Discount checkbox ────────────────────── */
+  .discount-box {
+    background: var(--surf-low); border-radius: 16px; padding: 16px;
+    display: flex; align-items: center; gap: 12px; cursor: pointer; margin-bottom: 20px;
+    transition: background .15s;
+  }
+  .discount-box:hover { background: var(--surf-mid); }
+  .disc-check {
+    width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid var(--outline); transition: all .15s;
+  }
+  .disc-check.on { background: var(--primary); border-color: var(--primary); }
+  .disc-checkmark {
+    font-family: 'Material Symbols Outlined', sans-serif; font-style: normal;
+    font-size: 14px; font-variation-settings: 'FILL' 0,'wght' 600; color: #fff; display: none;
+  }
+  .disc-check.on .disc-checkmark { display: block; }
+  .disc-text { flex: 1; }
+  .disc-main { font-family: 'Lexend', sans-serif; font-weight: 600; font-size: .9rem; color: var(--on-surf); }
+  .disc-sub { font-size: .7rem; color: var(--outline); margin-top: 1px; }
 
-    /* ── Tip row ──────────────────────────────── */
-    .tip-row { display:flex;gap:8px;overflow-x:auto;padding-bottom:4px; }
-    .tip-row::-webkit-scrollbar { display:none; }
-    .tip-chip { flex-shrink:0;min-width:52px;border:1px solid rgba(0,70,199,.18);border-radius:10px;
-                padding:8px 10px;font-size:.72rem;font-weight:700;text-align:center;
-                background:var(--surface-low);color:var(--on-surface);cursor:pointer;transition:all .15s; }
-    .tip-chip.active { background:var(--primary);color:#fff;border-color:var(--primary); }
+  /* ── Section label ────────────────────────── */
+  .sec-label {
+    font-family: 'Lexend', sans-serif; font-size: .62rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .2em; color: var(--outline);
+    margin-bottom: 12px;
+  }
 
-    /* ── Section label ────────────────────────── */
-    .sec-label { font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--outline);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center; }
-    .sec-label span { color:var(--primary); }
+  /* ── Tip buttons ──────────────────────────── */
+  .tip-row { display: flex; gap: 8px; margin-bottom: 24px; }
+  .tip-btn {
+    flex: 1; padding: 12px 4px;
+    border: 1px solid rgba(115,118,134,.3); border-radius: 12px;
+    background: var(--surf-low); color: var(--on-surf); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 3px;
+    font-family: 'Lexend', sans-serif; font-size: .75rem; font-weight: 600;
+    transition: all .15s;
+  }
+  .tip-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .tip-btn.active .tip-star { color: #fff; }
+  .tip-star {
+    font-family: 'Material Symbols Outlined', sans-serif; font-style: normal;
+    font-size: 11px; font-variation-settings: 'FILL' 1,'wght' 400; color: var(--primary);
+  }
 
-    /* ── Confirm button ───────────────────────── */
-    #confirm-btn {
-      width:100%;background:var(--primary);color:#fff;
-      border:none;border-radius:99px;padding:15px 24px;
-      font-family:'Lexend',sans-serif;font-weight:700;font-size:1rem;
-      display:flex;align-items:center;justify-content:center;gap:8px;
-      cursor:pointer;transition:transform .15s,background .15s;
-    }
-    #confirm-btn:hover { background:var(--primary-dim); }
-    #confirm-btn:active { transform:scale(.97); }
-    #confirm-btn:disabled { opacity:.55;cursor:not-allowed; }
-    .confirm-note { text-align:center;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--outline-var);margin-top:8px; }
+  /* ── Confirm button ───────────────────────── */
+  #confirm-btn {
+    width: 100%; background: var(--primary); color: #fff;
+    border: none; border-radius: 16px; padding: 20px 24px;
+    font-family: 'Lexend', sans-serif; font-weight: 700; font-size: 1.1rem;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    cursor: pointer; transition: transform .15s, background .15s;
+  }
+  #confirm-btn:hover { background: var(--primary-d); }
+  #confirm-btn:active { transform: scale(.98); }
+  #confirm-btn:disabled { opacity: .55; cursor: not-allowed; }
+  #confirm-btn .btn-icon {
+    font-family: 'Material Symbols Outlined', sans-serif; font-style: normal;
+    font-size: 20px; font-variation-settings: 'FILL' 0,'wght' 400;
+  }
 
-    /* ── Overlay screens ──────────────────────── */
-    .screen { position:fixed;inset:0;z-index:500;background:var(--surface);display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:32px;text-align:center; }
-    .screen.show { display:flex; }
-    .screen h2 { font-family:'Lexend',sans-serif;font-weight:800;font-size:1.3rem; }
-    .screen p  { font-size:.85rem;color:var(--on-surface-var);line-height:1.5;max-width:280px; }
-    .back-link { font-size:.85rem;font-weight:700;color:var(--primary);text-decoration:underline;margin-top:8px; }
-    @keyframes spin { to{transform:rotate(360deg)} }
-    .spinner { width:28px;height:28px;border:3px solid var(--surface-mid);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite; }
-    .suc-icon { width:72px;height:72px;border-radius:50%;background:#DCFCE7;display:flex;align-items:center;justify-content:center; }
-    .receipt { width:100%;max-width:280px;background:var(--surface-low);border-radius:16px;padding:16px;text-align:left;border:1px solid var(--outline-var); }
-    .receipt-row { display:flex;justify-content:space-between;font-size:.8rem;padding:3px 0; }
-    .receipt-row .lbl { color:var(--outline);font-weight:500; }
-    .receipt-row .val { font-weight:700;color:var(--on-surface); }
-    .receipt-divider { height:1px;background:var(--outline-var);margin:8px 0;opacity:.4; }
-    .receipt-total .val { font-family:'Lexend',sans-serif;font-size:1.2rem;font-weight:800;color:var(--primary); }
+  /* ── Drop-off modal ───────────────────────── */
+  #dm-overlay {
+    position: fixed; inset: 0; z-index: 500;
+    background: rgba(0,0,0,.45); display: none; align-items: flex-end;
+  }
+  #dm-overlay.show { display: flex; }
+  .dm-sheet {
+    width: 100%; background: var(--surface);
+    border-radius: 24px 24px 0 0;
+    max-height: 70vh; display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .dm-handle { width: 40px; height: 4px; background: rgba(115,118,134,.3); border-radius: 2px; margin: 12px auto 0; flex-shrink: 0; }
+  .dm-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px 8px; flex-shrink: 0;
+  }
+  .dm-header-title {
+    font-family: 'Lexend', sans-serif; font-weight: 700; font-size: 1rem;
+    letter-spacing: .1em; color: var(--on-surf);
+  }
+  .dm-close {
+    width: 32px; height: 32px; border: none; background: var(--surf-low);
+    border-radius: 50%; cursor: pointer; display: flex; align-items: center;
+    justify-content: center; font-size: 1rem; color: var(--on-sv);
+  }
+  .dm-list { overflow-y: auto; padding: 0 16px 32px; flex: 1; }
+  .dm-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px; border-radius: 12px; cursor: pointer;
+    margin-bottom: 4px; transition: background .1s;
+  }
+  .dm-item:hover { background: var(--surf-low); }
+  .dm-item.selected { background: rgba(0,70,199,.07); border: 1px solid rgba(0,70,199,.2); }
+  .dm-item-icon {
+    font-family: 'Material Symbols Outlined', sans-serif; font-style: normal;
+    font-size: 20px; font-variation-settings: 'FILL' 0,'wght' 400; flex-shrink: 0;
+  }
+  .dm-item.selected .dm-item-icon { font-variation-settings: 'FILL' 1,'wght' 400; color: var(--primary); }
+  .dm-item-name {
+    font-family: 'Lexend', sans-serif; font-weight: 600; font-size: .9rem;
+    color: var(--on-surf);
+  }
+  .dm-item.selected .dm-item-name { color: var(--primary); }
+  .dm-item-sub { font-size: .65rem; color: var(--outline); margin-top: 2px; }
 
-    /* ── Beacon marker ────────────────────────── */
-    .jeep-beacon { position:relative;width:36px;height:36px;cursor:default; }
-    @keyframes br { 0%{transform:scale(.6);opacity:.9} 100%{transform:scale(2.6);opacity:0} }
-    .jeep-beacon-ring { position:absolute;inset:0;border-radius:50%;border:2px solid var(--primary);background:rgba(0,70,199,.2);animation:br 1.8s ease-out infinite; }
-    .jeep-beacon-core { position:absolute;inset:5px;border-radius:50%;background:var(--primary);border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.28); }
-    .jeep-beacon-core img { width:16px;height:16px;object-fit:contain;filter:brightness(0) invert(1); }
-    .ride-marker-el { position:relative;bottom:0;left:0; }
-    .ride-marker-pin { width:26px;height:36px;display:flex;flex-direction:column;align-items:center; }
-    .ride-marker-circle { width:26px;height:26px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3);font-family:'Lexend',sans-serif;font-weight:800;font-size:.7rem;color:#fff; }
-    .ride-marker-tail { width:3px;flex:1;background:inherit;border-radius:0 0 2px 2px; }
+  /* ── Overlay screens ──────────────────────── */
+  .screen { position:fixed;inset:0;z-index:600;background:var(--surface);
+    display:none;flex-direction:column;align-items:center;justify-content:center;
+    gap:16px;padding:32px;text-align:center; }
+  .screen.show { display:flex; }
+  .screen h2 { font-family:'Lexend',sans-serif;font-weight:800;font-size:1.3rem; }
+  .screen p  { font-size:.85rem;color:var(--on-sv);line-height:1.5;max-width:280px; }
+  .back-link { font-size:.85rem;font-weight:700;color:var(--primary);text-decoration:underline;margin-top:8px; }
+  .spinner { width:28px;height:28px;border:3px solid var(--surf-mid);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite; }
+  .suc-icon { width:72px;height:72px;border-radius:50%;background:#DCFCE7;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined',sans-serif;font-style:normal;font-size:2.5rem;font-variation-settings:'FILL' 1,'wght' 400;color:#16A34A; }
+  .receipt { width:100%;max-width:280px;background:var(--surf-low);border-radius:16px;padding:16px;text-align:left;border:1px solid var(--out-var); }
+  .rr { display:flex;justify-content:space-between;font-size:.8rem;padding:3px 0; }
+  .rr .lbl { color:var(--outline);font-weight:500; }
+  .rr .val { font-weight:700;color:var(--on-surf); }
+  .rdiv { height:1px;background:var(--out-var);margin:8px 0;opacity:.4; }
+  .rtot .val { font-family:'Lexend',sans-serif;font-size:1.2rem;font-weight:800;color:var(--primary); }
+
+  /* ── Map markers ──────────────────────────── */
+  .jeep-beacon { position:relative;width:36px;height:36px; }
+  @keyframes br { 0%{transform:scale(.6);opacity:.9}100%{transform:scale(2.6);opacity:0} }
+  .jeep-beacon-ring { position:absolute;inset:0;border-radius:50%;border:2px solid var(--primary);background:rgba(0,70,199,.2);animation:br 1.8s ease-out infinite; }
+  .jeep-beacon-core { position:absolute;inset:4px;border-radius:50%;background:var(--primary);border:3px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(0,70,199,.35); }
+  .jeep-beacon-core img { width:18px;height:18px;object-fit:contain;filter:brightness(0) invert(1); }
+  .pin-marker { display:flex;flex-direction:column;align-items:center;width:36px; }
+  .pin-circle { width:32px;height:32px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-family:'Lexend',sans-serif;font-weight:800;font-size:0.8rem;color:#fff;box-shadow:0 3px 12px rgba(0,0,0,.35); }
+  .pin-tail { width:4px;height:12px;border-radius:0 0 2px 2px;margin-top:-2px; }
   </style>
 </head>
 <body>
 
-  <!-- ── Loading ────────────────────────────────────── -->
-  <div id="loading-screen" class="screen show">
-    <img src="assets/esuyo_logo.png" alt="E-Suyo" style="width:56px;border-radius:12px;object-fit:contain">
-    <div class="spinner"></div>
-    <p style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--outline)">Loading session…</p>
+<!-- ── Loading ──────────────────────────────────── -->
+<div id="loading-screen" class="screen show">
+  <img src="assets/esuyo_logo.png" alt="E-Suyo" style="width:56px;border-radius:12px;object-fit:contain">
+  <div class="spinner"></div>
+  <p style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--outline)">Loading session…</p>
+</div>
+
+<!-- ── Error ────────────────────────────────────── -->
+<div id="error-screen" class="screen">
+  <div style="font-family:'Material Symbols Outlined',sans-serif;font-size:3rem;color:#ba1a1a;font-style:normal;font-variation-settings:'FILL' 1,'wght' 400">error</div>
+  <h2>Session Not Found</h2>
+  <p id="error-msg">This pasada session may have ended or the link is invalid.</p>
+  <a href="/" class="back-link">← Back to Map</a>
+</div>
+
+<!-- ── Success ──────────────────────────────────── -->
+<div id="success-screen" class="screen">
+  <div class="suc-icon">check_circle</div>
+  <h2>Boarding Confirmed!</h2>
+  <p>Your fare has been recorded. Show this screen to your driver.</p>
+  <div class="receipt">
+    <div class="rr"><span class="lbl">Jeepney</span><span class="val" id="suc-plate">—</span></div>
+    <div class="rr"><span class="lbl">Drop-off</span><span class="val" id="suc-dropoff">—</span></div>
+    <div class="rr"><span class="lbl">Distance</span><span class="val" id="suc-dist">—</span></div>
+    <div class="rr" id="suc-disc-row" style="display:none"><span class="lbl">Discount</span><span class="val" style="color:#16A34A">-20%</span></div>
+    <div class="rdiv"></div>
+    <div class="rr rtot"><span class="lbl" style="font-weight:700">Total Paid</span><span class="val" id="suc-fare">—</span></div>
+    <div class="rr"><span></span><span id="suc-time" style="font-size:.6rem;color:var(--outline)">—</span></div>
   </div>
+  <a href="/" class="back-link">← Back to Map</a>
+</div>
 
-  <!-- ── Error ──────────────────────────────────────── -->
-  <div id="error-screen" class="screen">
-    <span class="ms fill" style="font-size:3rem;color:var(--error)">error</span>
-    <h2>Session Not Found</h2>
-    <p id="error-msg">This pasada session may have ended or the link is invalid.</p>
-    <a href="/" class="back-link">← Back to Map</a>
+<!-- ── Header ───────────────────────────────────── -->
+<header id="hdr">
+  <a href="/" id="hdr-back">arrow_back</a>
+  <div id="hdr-title">Select Drop Off Point</div>
+  <div class="hdr-plate-pill">
+    <div class="live-dot"></div>
+    <span id="hdr-plate">—</span>
   </div>
+</header>
 
-  <!-- ── Success ────────────────────────────────────── -->
-  <div id="success-screen" class="screen">
-    <div class="suc-icon"><span class="ms fill" style="font-size:2.5rem;color:#16A34A">check_circle</span></div>
-    <h2>Boarding Confirmed!</h2>
-    <p>Your fare has been recorded. Show this screen to your driver.</p>
-    <div class="receipt">
-      <div class="receipt-row"><span class="lbl">Jeepney</span><span class="val" id="suc-plate">—</span></div>
-      <div class="receipt-row"><span class="lbl">Driver</span><span class="val" id="suc-driver">—</span></div>
-      <div class="receipt-row"><span class="lbl">Drop-off</span><span class="val" id="suc-dropoff">—</span></div>
-      <div class="receipt-row"><span class="lbl">Distance</span><span class="val" id="suc-dist">—</span></div>
-      <div class="receipt-row" id="suc-discount-row" style="display:none"><span class="lbl">Discount</span><span class="val" style="color:var(--green)" id="suc-discount-label">—</span></div>
-      <div class="receipt-divider"></div>
-      <div class="receipt-row receipt-total"><span class="lbl" style="font-weight:700">Total Paid</span><span class="val" id="suc-fare">—</span></div>
-      <div class="receipt-row" style="margin-top:2px"><span class="lbl"></span><span id="suc-time" style="font-size:.62rem;color:var(--outline)">—</span></div>
-    </div>
-    <a href="/" class="back-link">← Back to Map</a>
+<!-- ── Map ──────────────────────────────────────── -->
+<div id="map">
+  <div id="custom-toast" class="custom-mode-toast" style="display:none">
+    <span>📍 Tap route to set drop-off</span>
   </div>
+</div>
 
-  <!-- ── Header ─────────────────────────────────────── -->
-  <header id="hdr">
-    <a href="/"><span class="ms">arrow_back</span></a>
-    <div id="hdr-title">
-      <h1>Board Jeepney</h1>
-      <p id="hdr-route">—</p>
-    </div>
-    <div class="live-chip">
-      <span class="live-dot"></span>
-      <span>LIVE</span>
-    </div>
-  </header>
+<!-- ── Sheet ────────────────────────────────────── -->
+<div id="sheet">
+  <div class="pull"></div>
+  <div class="sheet-inner">
 
-  <!-- ── Map ────────────────────────────────────────── -->
-  <div id="map"></div>
-
-  <!-- ── Bottom Sheet ───────────────────────────────── -->
-  <div id="sheet">
-    <div class="pull"></div>
-
-    <!-- Jeepney banner -->
-    <div id="jeep-banner" class="sec" style="padding:0;margin:0 14px 14px;">
-      <img src="assets/jeep.png" alt="">
+    <!-- Compact jeepney banner -->
+    <div class="jeep-banner-compact">
+      <img src="assets/jeep.png" class="jbc-img" alt="">
       <div>
-        <div class="ban-plate" id="ban-plate">—</div>
-        <div class="ban-sub" id="ban-driver">—</div>
+        <div class="jbc-plate" id="ban-plate">—</div>
+        <div class="jbc-sub" id="ban-driver">—</div>
       </div>
-      <div class="ban-meta">
-        <div class="ban-pax">
-          <div class="ban-pax-num" id="ban-pax">—</div>
-          <div class="ban-pax-lbl">aboard</div>
-        </div>
-        <div class="ban-pax" id="ban-color-wrap">
-          <div class="ban-pax-num" id="ban-color-dot" style="width:14px;height:14px;border-radius:50%;background:#9CA3AF;margin:0 auto 2px;border:1px solid rgba(255,255,255,.3)"></div>
-          <div class="ban-pax-lbl" id="ban-color-lbl">—</div>
-        </div>
+      <div class="jbc-live">
+        <div class="live-dot"></div>
+        <span>LIVE</span>
       </div>
     </div>
 
-    <!-- Route header -->
-    <div class="sec">
-      <div class="route-hdr">
-        <span class="route-hdr-lbl">Route</span>
-        <div class="active-badge"><div class="dot"></div><span>Active</span></div>
+    <!-- Route overview -->
+    <div class="route-row">
+      <div>
+        <div class="route-lbl" id="route-overview-lbl">ROUTE OVERVIEW</div>
+        <div class="route-name" id="sheet-route">—</div>
       </div>
-      <div class="route-hdr-name hl" id="sheet-route">—</div>
-    </div>
-
-    <!-- Fare widget -->
-    <div class="sec">
-      <div class="fare-widget">
-        <div class="fw-col">
-          <label>Distance</label>
-          <div><span class="val" id="fw-dist">—</span><span class="unit" id="fw-unit"></span></div>
-        </div>
-        <div class="fw-divider"></div>
-        <div class="fw-col" style="text-align:right">
-          <label>Fare</label>
-          <div><span style="font-size:.75rem;opacity:.55">₱</span><span class="val" id="fw-fare">—</span></div>
-        </div>
+      <div class="active-pill">
+        <div class="adot"></div>
+        <span>ACTIVE</span>
       </div>
     </div>
 
-    <!-- Boarding / Drop-off points -->
-    <div class="sec">
-      <div class="points-panel">
-        <div class="point-row">
-          <div class="point-badge a">A</div>
-          <div class="point-info">
-            <label>Boarding Point</label>
-            <div class="name" id="pt-boarding">Jeepney Location</div>
-            <div class="sub" id="pt-boarding-sub">—</div>
+    <!-- Slider (km-based continuous) -->
+    <div class="slider-section" id="slider-sec">
+      <div class="slider-section-label">Route Position</div>
+      <div class="slider-hint">Drag B to any point on the route</div>
+      <div class="slider-wrap" id="slider-wrap">
+        <div class="price-bubble" id="price-bubble">₱14.00</div>
+        <div class="track-marker a" id="track-a">A</div>
+        <div class="track-marker b" id="track-b">B</div>
+        <input type="range" id="km-slider" min="0" max="1" step="0.001" value="1">
+        <div id="tick-container"></div>
+        <div class="slider-ticks-space"></div>
+      </div>
+    </div>
+
+    <!-- A: Starting point pod -->
+    <div class="input-pod" id="pod-a">
+      <div class="pod-circle a" id="pod-a-circle">A</div>
+      <div class="pod-info">
+        <div class="pod-label">STARTING POINT</div>
+        <div class="pod-value" id="pod-a-value">Locating…</div>
+      </div>
+      <div class="pod-spinner" id="pod-a-spinner"></div>
+    </div>
+
+    <!-- B: Drop-off pod -->
+    <div class="b-pod-wrap" id="b-pod" onclick="openDropoffModal()">
+      <div class="b-pod-left">
+        <div class="pod-circle b">B</div>
+        <div class="pod-info">
+          <div class="pod-label">DROP OFF</div>
+          <div class="pod-value green" id="pod-b-value">—</div>
+        </div>
+        <span class="b-pod-arrow">keyboard_arrow_down</span>
+      </div>
+      <div class="b-pod-divider"></div>
+      <div class="b-pod-custom" id="custom-btn" onclick="toggleCustomMode(event)">
+        <div class="custom-circle" id="custom-circle">map</div>
+        <div class="custom-lbl">CUSTOM</div>
+        <div class="custom-val" id="custom-val">Off</div>
+      </div>
+    </div>
+
+    <!-- Blue summary card -->
+    <div class="summary-card">
+      <div class="sc-left">
+        <div class="sc-dest" id="sc-dest">—</div>
+        <div class="sc-meta">
+          <div class="sc-meta-item">
+            <span class="sc-meta-icon">schedule</span>
+            <span class="sc-meta-txt" id="sc-mins">— min</span>
+          </div>
+          <div class="sc-meta-item">
+            <span class="sc-meta-icon">straighten</span>
+            <span class="sc-meta-txt" id="sc-dist">— km</span>
           </div>
         </div>
-        <div class="point-connector">
-          <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      </div>
+      <div class="sc-right">
+        <div class="sc-badges">
+          <span class="sc-badge disc" id="sc-disc-badge" style="display:none">-20%</span>
+          <span class="sc-badge tip" id="sc-tip-badge" style="display:none"></span>
         </div>
-        <div class="point-row">
-          <div class="point-badge b">B</div>
-          <div class="point-info">
-            <label>Drop-off Stop</label>
-            <div class="name" id="pt-dropoff">—</div>
-            <div class="sub" id="pt-dropoff-sub">Drag slider to change</div>
-          </div>
-        </div>
+        <div class="sc-fare" id="sc-fare">₱—</div>
+        <div class="sc-base-fare" id="sc-base-fare" style="display:none"></div>
       </div>
     </div>
 
-    <!-- Stop slider -->
-    <div class="sec" id="slider-sec">
-      <div class="slider-section">
-        <div class="slider-top">
-          <label>Drop-off Stop</label>
-          <span id="stop-name-pill">—</span>
-        </div>
-        <input type="range" id="stop-slider" min="0" max="0" value="0" style="--pct:100%">
-        <div class="stop-ticks" id="stop-ticks"></div>
+    <!-- Discount checkbox -->
+    <div class="discount-box" id="disc-box" onclick="toggleDiscount()">
+      <div class="disc-check" id="disc-check">
+        <span class="disc-checkmark">check</span>
       </div>
-    </div>
-
-    <!-- Discount -->
-    <div class="sec">
-      <div class="sec-label">Fare Discount</div>
-      <div class="chip-grid">
-        <button class="chip active" onclick="setDiscount(this,0)">Standard</button>
-        <button class="chip" onclick="setDiscount(this,.2)">Student</button>
-        <button class="chip" onclick="setDiscount(this,.2)">Senior Citizen</button>
-        <button class="chip" onclick="setDiscount(this,.2)">PWD</button>
+      <div class="disc-text">
+        <div class="disc-main">Apply 20% Discount</div>
+        <div class="disc-sub">Student / Senior / PWD</div>
       </div>
     </div>
 
     <!-- Tip -->
-    <div class="sec">
-      <div class="sec-label">Tip Driver <span id="tip-display">+₱0</span></div>
-      <div class="tip-row">
-        <button class="tip-chip active" onclick="setTip(this,0)">None</button>
-        <button class="tip-chip" onclick="setTip(this,5)">₱5</button>
-        <button class="tip-chip" onclick="setTip(this,10)">₱10</button>
-        <button class="tip-chip" onclick="setTip(this,20)">₱20</button>
-      </div>
+    <div class="sec-label">TIP YOUR DRIVER</div>
+    <div class="tip-row">
+      <button class="tip-btn" onclick="setTip(this,0)">None</button>
+      <button class="tip-btn active" onclick="setTip(this,5)"><span class="tip-star">star</span>₱5</button>
+      <button class="tip-btn" onclick="setTip(this,10)">₱10</button>
+      <button class="tip-btn" onclick="setTip(this,20)">₱20</button>
     </div>
 
     <!-- Confirm -->
-    <div class="sec">
-      <button id="confirm-btn" onclick="confirmBoard()">
-        <span id="confirm-txt">Confirm &amp; Pay</span>
-        <span class="ms">arrow_forward</span>
-      </button>
-      <p class="confirm-note">Payment recorded to active pasada session</p>
+    <button id="confirm-btn" onclick="confirmBoard()">
+      <span id="confirm-txt">Confirm &amp; Pay</span>
+      <span class="btn-icon">arrow_forward</span>
+    </button>
+
+  </div><!-- /sheet-inner -->
+</div><!-- /sheet -->
+
+<!-- ── Drop-off Modal ────────────────────────────── -->
+<div id="dm-overlay" onclick="closeDropoffModal(event)">
+  <div class="dm-sheet" onclick="event.stopPropagation()">
+    <div class="dm-handle"></div>
+    <div class="dm-header">
+      <span class="dm-header-title">SELECT DROP-OFF</span>
+      <button class="dm-close" onclick="closeDropoffModal()">✕</button>
     </div>
+    <div class="dm-list" id="dm-list"></div>
   </div>
+</div>
 
-  <script defer src="config.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script defer src="maplibre-gl.js"></script>
-  <script>
-  // ── wait for all deferred scripts ─────────────────────────────────────────
-  window.addEventListener('load', initBoard);
+<script defer src="config.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script defer src="maplibre-gl.js"></script>
+<script>
+window.addEventListener('load', initBoard);
 
-  // ── state ──────────────────────────────────────────────────────────────────
-  let _supabase  = null;
-  let _session   = null;
-  let _route     = null;
-  let _map       = null;
-  let _stops     = [];        // route stops array
-  let _boardingIdx = 0;       // nearest stop index to jeepney
-  let _dropoffIdx  = 0;       // current slider value
-  let _discountRate = 0;
-  let _tip = 0;
-  let _baseFare = 0;
-  let _distKm = 0;
-  let _beaconMarker = null;
-  let _markerA = null;
-  let _markerB = null;
+// ── state ──────────────────────────────────────────────────────────────────
+let _sb        = null;
+let _session   = null;
+let _route     = null;
+let _stops     = [];           // route stops [{lat,lng,name,roadPathFromPrev,...}]
+let _flatCoords = [];          // [[lng,lat],...] full route geometry
+let _stopKms    = [];          // cumulative km for each stop on flat route
+let _totalKm    = 0;           // total route length
+let _boardingKm = 0;           // km position of jeepney on route
+let _sliderKm   = 0;           // current B km position
+let _dropoffName = '—';        // current drop-off name
+let _dropoffLat  = null;
+let _dropoffLng  = null;
+let _hasDiscount = false;
+let _tip         = 5;
+let _baseFare    = 0;
+let _isCustomMode = false;
+let _map         = null;
+let _beaconMarker = null;
+let _markerA     = null;
+let _markerB     = null;
 
-  const FARE = {
-    puj:           { base:14.00, baseKm:4, perKm:2.00 },
-    mpuj:          { base:17.00, baseKm:4, perKm:2.30 },
-    'pub-city':    { base:15.00, baseKm:5, perKm:2.49 },
-    'pub-city-ac': { base:18.00, baseKm:5, perKm:2.98 },
-    'uv-express':  { base:25.00, baseKm:5, perKm:2.50 },
-  };
-  const CARTO = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+const FARE = {
+  puj:           { base:14.00, baseKm:4, perKm:2.00 },
+  mpuj:          { base:17.00, baseKm:4, perKm:2.30 },
+  'pub-city':    { base:15.00, baseKm:5, perKm:2.49 },
+  'pub-city-ac': { base:18.00, baseKm:5, perKm:2.98 },
+  'uv-express':  { base:25.00, baseKm:5, perKm:2.50 },
+};
+const CARTO = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 
-  // ── utils ──────────────────────────────────────────────────────────────────
-  function hav(lat1,lng1,lat2,lng2) {
-    const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
-    const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
-    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-  }
-  function pathDist(stops, fromIdx, toIdx) {
-    let d=0;
-    for(let i=fromIdx;i<toIdx;i++) d+=hav(stops[i].lat,stops[i].lng,stops[i+1].lat,stops[i+1].lng);
-    return d;
-  }
-  function calcFare(vt, distKm) {
-    const m=FARE[vt]||FARE.puj;
-    return m.base+Math.max(0,distKm-m.baseKm)*m.perKm;
-  }
-  function nearestStopIdx(stops, lat, lng) {
-    let bestIdx=0, bestDist=Infinity;
-    stops.forEach((s,i)=>{ const d=hav(lat,lng,s.lat,s.lng); if(d<bestDist){bestDist=d;bestIdx=i;} });
-    return bestIdx;
-  }
-  function colorMap(str) {
-    const m={red:'#EF4444',blue:'#3B82F6',yellow:'#F59E0B',green:'#22C55E',white:'#F3F4F6',black:'#111827',orange:'#F97316',purple:'#8B5CF6'};
-    return m[(str||'').toLowerCase()] || (str&&str.startsWith('#')?str:'#9CA3AF');
-  }
+// ── math utils ─────────────────────────────────────────────────────────────
+function hav(lat1,lng1,lat2,lng2) {
+  const R=6371, d2r=Math.PI/180;
+  const dLat=(lat2-lat1)*d2r, dLng=(lng2-lng1)*d2r;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*d2r)*Math.cos(lat2*d2r)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
 
-  // ── show/hide screens ──────────────────────────────────────────────────────
-  function showError(msg) {
-    document.getElementById('loading-screen').classList.remove('show');
-    document.getElementById('error-msg').textContent = msg||'Something went wrong.';
-    document.getElementById('error-screen').classList.add('show');
-  }
+function calcFare(vt, distKm) {
+  const m=FARE[vt]||FARE.puj;
+  return m.base + Math.max(0, distKm - m.baseKm) * m.perKm;
+}
 
-  // ── init ───────────────────────────────────────────────────────────────────
-  async function initBoard() {
-    const cfg = window.ESUYO_CONFIG;
-    if (!cfg || !window.supabase) { showError('App not initialized.'); return; }
-    _supabase = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
-
-    const p = new URLSearchParams(location.search);
-    const sessionId  = p.get('session');
-    const plateFall  = p.get('plate') || '';
-    if (!sessionId) { showError('No session ID provided.'); return; }
-
-    const { data:session, error:sErr } = await _supabase
-      .from('pasada_sessions').select('*').eq('id', sessionId).single();
-    if (sErr||!session) { showError('Session not found or has ended.'); return; }
-    if (session.status!=='active') { showError('This pasada session has already ended.'); return; }
-    _session = session;
-
-    if (session.route_id) {
-      const { data:route } = await _supabase
-        .from('routes').select('*').eq('id', session.route_id).single();
-      _route = route || null;
-    }
-
-    _stops = (_route?.stops||[]).filter(s=>s.lat!=null&&s.lng!=null);
-
-    populateUI(plateFall);
-    initMap(plateFall);
-  }
-
-  // ── populate text/controls ─────────────────────────────────────────────────
-  function populateUI(plateFall) {
-    const s  = _session;
-    const plate  = s.vehicle_plate||plateFall||'Unknown';
-    const driver = s.driver_name||'Unknown Driver';
-    const pax    = s.passenger_count!=null?s.passenger_count:'—';
-    const col    = s.vehicle_color||'';
-
-    document.getElementById('hdr-route').textContent   = _route?.name||'Unknown Route';
-    document.getElementById('ban-plate').textContent   = plate;
-    document.getElementById('ban-driver').textContent  = driver;
-    document.getElementById('ban-pax').textContent     = pax;
-    document.getElementById('sheet-route').textContent = _route?.name||'Unknown Route';
-
-    const hex = colorMap(col);
-    document.getElementById('ban-color-dot').style.background = hex;
-    document.getElementById('ban-color-lbl').textContent = col||'—';
-
-    // Boarding coords sub
-    if (s.lat&&s.lng) {
-      document.getElementById('pt-boarding-sub').textContent = `${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}`;
-    }
-
-    // Find nearest boarding stop
-    if (_stops.length) {
-      _boardingIdx = s.lat&&s.lng ? nearestStopIdx(_stops, s.lat, s.lng) : 0;
-      _dropoffIdx  = _stops.length-1;
-
-      // Boarding point name
-      document.getElementById('pt-boarding').textContent = _stops[_boardingIdx]?.name||'Jeepney Location';
-
-      // Slider setup
-      const slider = document.getElementById('stop-slider');
-      slider.min   = _boardingIdx;
-      slider.max   = _stops.length-1;
-      slider.value = _dropoffIdx;
-      buildStopTicks();
-      updateSliderPct();
-      onSliderChange();
-      slider.addEventListener('input', ()=>{ _dropoffIdx=+slider.value; updateSliderPct(); onSliderChange(); });
+function buildFlatCoords() {
+  if (!_stops.length) return [];
+  const out = [[_stops[0].lng, _stops[0].lat]];
+  for (let i=1;i<_stops.length;i++) {
+    const s = _stops[i];
+    if (Array.isArray(s.roadPathFromPrev) && s.roadPathFromPrev.length > 1) {
+      s.roadPathFromPrev.slice(1).forEach(p => out.push([+p[0],+p[1]]));
     } else {
-      document.getElementById('slider-sec').style.display='none';
-      _baseFare = FARE[_route?.vehicle_type||'puj']?.base||14;
-      updateFareDisplay();
+      out.push([s.lng, s.lat]);
     }
-
-    // Hide loading, show main
-    document.getElementById('loading-screen').classList.remove('show');
-    document.getElementById('hdr').style.display='flex';
-    document.getElementById('map').style.display='block';
-    document.getElementById('sheet').style.display='block';
   }
+  return out;
+}
 
-  function buildStopTicks() {
-    const ticks = document.getElementById('stop-ticks');
-    const n = _stops.length;
-    // Show at most 6 labels; always show first, last, boarding, and dropoff
-    const show = new Set([0, _boardingIdx, _dropoffIdx, n-1]);
-    if (n <= 7) _stops.forEach((_,i)=>show.add(i));
-    else {
-      const step = Math.floor(n/5);
-      for(let i=0;i<n;i+=step) show.add(i);
+function totalRouteKm(coords) {
+  let cum = 0;
+  for (let i=1;i<coords.length;i++) {
+    const a=coords[i-1], b=coords[i];
+    cum += hav(a[1],a[0],b[1],b[0]);
+  }
+  return cum || 1;
+}
+
+function coordAtDistance(km) {
+  if (!_flatCoords.length) return null;
+  if (km <= 0) return { lat:_flatCoords[0][1], lng:_flatCoords[0][0] };
+  let cum = 0;
+  for (let i=1;i<_flatCoords.length;i++) {
+    const a=_flatCoords[i-1], b=_flatCoords[i];
+    const seg = hav(a[1],a[0],b[1],b[0]);
+    if (cum+seg >= km) {
+      const t = seg>0 ? (km-cum)/seg : 0;
+      return { lat: a[1]+(b[1]-a[1])*t, lng: a[0]+(b[0]-a[0])*t };
     }
-    ticks.innerHTML='';
-    _stops.forEach((s,i)=>{
-      const d = document.createElement('div');
-      d.className = 'stop-tick' + (i===_dropoffIdx?' active':'');
-      d.textContent = show.has(i)?(s.name||`Stop ${i+1}`):'';
-      d.dataset.idx = i;
-      ticks.appendChild(d);
-    });
+    cum += seg;
+  }
+  const last = _flatCoords[_flatCoords.length-1];
+  return { lat:last[1], lng:last[0] };
+}
+
+function projectOntoSegment(pLat,pLng,aLat,aLng,bLat,bLng) {
+  const abLat=bLat-aLat, abLng=bLng-aLng;
+  const lenSq=abLat*abLat+abLng*abLng;
+  if (lenSq<1e-18) return 0;
+  const t=((pLat-aLat)*abLat+(pLng-aLng)*abLng)/lenSq;
+  return Math.max(0,Math.min(1,t));
+}
+
+function projectToRoute(lat,lng) {
+  if (_flatCoords.length<2) return 0;
+  let bestDist=Infinity, bestKm=0, cum=0;
+  for (let i=1;i<_flatCoords.length;i++) {
+    const a=_flatCoords[i-1], b=_flatCoords[i];
+    const seg=hav(a[1],a[0],b[1],b[0]);
+    const t=projectOntoSegment(lat,lng,a[1],a[0],b[1],b[0]);
+    const pLat=a[1]+(b[1]-a[1])*t, pLng=a[0]+(b[0]-a[0])*t;
+    const d=hav(lat,lng,pLat,pLng);
+    if (d<bestDist) { bestDist=d; bestKm=cum+t*seg; }
+    cum+=seg;
+  }
+  return bestKm;
+}
+
+function buildStopKms() {
+  return _stops.map(s => projectToRoute(s.lat, s.lng));
+}
+
+function colorMap(str) {
+  const m={red:'#EF4444',blue:'#3B82F6',yellow:'#F59E0B',green:'#22C55E',white:'#F3F4F6',black:'#111827',orange:'#F97316',purple:'#8B5CF6'};
+  return m[(str||'').toLowerCase()]||(str&&str.startsWith('#')?str:'#9CA3AF');
+}
+
+// ── screens ────────────────────────────────────────────────────────────────
+function showError(msg) {
+  document.getElementById('loading-screen').classList.remove('show');
+  document.getElementById('error-msg').textContent = msg||'Something went wrong.';
+  document.getElementById('error-screen').classList.add('show');
+}
+
+// ── init ───────────────────────────────────────────────────────────────────
+async function initBoard() {
+  const cfg = window.ESUYO_CONFIG;
+  if (!cfg||!window.supabase) { showError('App not initialized.'); return; }
+  _sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+
+  const p = new URLSearchParams(location.search);
+  const sessionId = p.get('session');
+  const plateFall = p.get('plate')||'';
+  if (!sessionId) { showError('No session ID provided.'); return; }
+
+  const { data:session, error:sErr } = await _sb
+    .from('pasada_sessions').select('*').eq('id', sessionId).single();
+  if (sErr||!session) { showError('Session not found or has ended.'); return; }
+  if (session.status!=='active') { showError('This pasada session has already ended.'); return; }
+  _session = session;
+
+  if (session.route_id) {
+    const { data:route } = await _sb
+      .from('routes').select('*').eq('id', session.route_id).single();
+    _route = route||null;
   }
 
-  function updateSliderPct() {
-    const slider = document.getElementById('stop-slider');
-    const min=+slider.min, max=+slider.max, val=+slider.value;
-    const pct = max===min ? 100 : ((val-min)/(max-min)*100);
-    slider.style.setProperty('--pct', pct+'%');
-    // Update tick highlights
-    document.querySelectorAll('.stop-tick').forEach(t=>{
-      t.classList.toggle('active', +t.dataset.idx===_dropoffIdx);
-    });
+  _stops = (_route?.stops||[]).filter(s=>s.lat!=null&&s.lng!=null);
+  _flatCoords = buildFlatCoords();
+  _totalKm = totalRouteKm(_flatCoords);
+  _stopKms = buildStopKms();
+  _boardingKm = (session.lat&&session.lng) ? projectToRoute(session.lat, session.lng) : 0;
+  _sliderKm = _totalKm; // start at end of route
+
+  populateUI(plateFall);
+  initMap(plateFall);
+}
+
+// ── populate UI ────────────────────────────────────────────────────────────
+function populateUI(plateFall) {
+  const s = _session;
+  const plate = s.vehicle_plate||plateFall||'Unknown';
+  const driver = s.driver_name||'Unknown Driver';
+
+  // Header / banner
+  document.getElementById('hdr-plate').textContent = plate;
+  document.getElementById('ban-plate').textContent = plate;
+  document.getElementById('ban-driver').textContent = driver;
+
+  // Route label
+  const rName = _route?.name||'Unknown Route';
+  document.getElementById('route-overview-lbl').textContent = (rName.toUpperCase()+' OVERVIEW');
+  document.getElementById('sheet-route').textContent = rName;
+
+  // A pod
+  const boardingStop = _stops[nearestStopIdx(_stops, _boardingKm)];
+  document.getElementById('pod-a-value').textContent = boardingStop?.name||'Jeepney Location';
+  document.getElementById('pod-a-spinner').style.display = 'none';
+
+  // B pod initial
+  const lastStop = _stops[_stops.length-1];
+  if (lastStop) {
+    _dropoffName = lastStop.name;
+    _dropoffLat  = lastStop.lat;
+    _dropoffLng  = lastStop.lng;
   }
+  syncDropoffDisplay();
 
-  function onSliderChange() {
-    const stop = _stops[_dropoffIdx];
-    if (!stop) return;
-
-    document.getElementById('stop-name-pill').textContent = stop.name||`Stop ${_dropoffIdx+1}`;
-    document.getElementById('pt-dropoff').textContent = stop.name||`Stop ${_dropoffIdx+1}`;
-
-    // Distance along route stops
-    const fromIdx = Math.min(_boardingIdx, _dropoffIdx);
-    const toIdx   = Math.max(_boardingIdx, _dropoffIdx);
-    _distKm = pathDist(_stops, fromIdx, toIdx);
-
-    const vt = _route?.vehicle_type||'puj';
-    _baseFare = calcFare(vt, _distKm);
+  // Slider
+  if (_stops.length) {
+    const slider = document.getElementById('km-slider');
+    slider.min = 0;
+    slider.max = _totalKm;
+    slider.step = _totalKm / 1000;
+    slider.value = _sliderKm;
+    slider.addEventListener('input', onSliderInput);
+    slider.addEventListener('change', onSliderChange);
+    buildTickMarks();
+    updateSliderPositions();
+  } else {
+    document.getElementById('slider-sec').style.display = 'none';
+    _baseFare = (FARE[_route?.vehicle_type||'puj']?.base)||14;
     updateFareDisplay();
+  }
 
-    // Update map
-    if (_map) {
-      moveMarkerB(stop.lat, stop.lng);
-      drawHighlightPath(fromIdx, toIdx);
+  buildDropoffModal();
+  updateFareDisplay();
+
+  document.getElementById('loading-screen').classList.remove('show');
+}
+
+function nearestStopIdx(stops, km) {
+  if (!stops.length) return 0;
+  let bestIdx=0, bestDist=Infinity;
+  _stopKms.forEach((sk,i) => {
+    const d=Math.abs(sk-km);
+    if(d<bestDist){bestDist=d;bestIdx=i;}
+  });
+  return bestIdx;
+}
+
+function syncDropoffDisplay() {
+  document.getElementById('pod-b-value').textContent = _dropoffName;
+  document.getElementById('sc-dest').textContent = _dropoffName;
+  updateFareDisplay();
+}
+
+// ── slider logic ───────────────────────────────────────────────────────────
+function onSliderInput() {
+  const slider = document.getElementById('km-slider');
+  _sliderKm = +slider.value;
+  const pt = coordAtDistance(_sliderKm);
+  if (pt) { _dropoffLat=pt.lat; _dropoffLng=pt.lng; }
+  // Nearest stop name for display
+  const ni = nearestStopIdx(_stops, _sliderKm);
+  const dist = Math.abs(_stopKms[ni] - _sliderKm);
+  _dropoffName = dist < 0.15 ? (_stops[ni]?.name||'Custom Point') : 'Custom Point';
+  syncDropoffDisplay();
+  updateSliderPositions();
+  if (_map && pt) moveMarkerB(pt.lat, pt.lng);
+  if (_map) drawHighlight();
+}
+
+function onSliderChange() {
+  // On release, snap to nearest stop if very close
+  const ni = nearestStopIdx(_stops, _sliderKm);
+  const dist = Math.abs(_stopKms[ni] - _sliderKm);
+  if (dist < 0.15 && _stops[ni]) {
+    _sliderKm = _stopKms[ni];
+    _dropoffName = _stops[ni].name;
+    _dropoffLat  = _stops[ni].lat;
+    _dropoffLng  = _stops[ni].lng;
+    document.getElementById('km-slider').value = _sliderKm;
+    syncDropoffDisplay();
+    updateSliderPositions();
+    if (_map) { moveMarkerB(_dropoffLat, _dropoffLng); drawHighlight(); }
+  }
+}
+
+function updateSliderPositions() {
+  const wrap = document.getElementById('slider-wrap');
+  const wrapW = wrap.offsetWidth;
+  const thumbW = 22;
+  const trackW = wrapW - thumbW;
+  const bFrac = _totalKm > 0 ? Math.max(0, Math.min(1, _sliderKm / _totalKm)) : 0;
+  const aFrac = _totalKm > 0 ? Math.max(0, Math.min(1, _boardingKm / _totalKm)) : 0;
+  const bPx = bFrac * trackW + thumbW/2;
+
+  // Slider fill gradient
+  const slider = document.getElementById('km-slider');
+  slider.style.setProperty('--pct', (bFrac*100)+'%');
+
+  // Price bubble (centered on thumb)
+  const bubble = document.getElementById('price-bubble');
+  const bw = bubble.offsetWidth || 60;
+  bubble.style.left = Math.max(0, Math.min(bPx - bw/2, wrapW-bw)) + 'px';
+
+  // A marker (offset by half thumb to align with track)
+  const trackA = document.getElementById('track-a');
+  trackA.style.left = (aFrac * trackW + thumbW/2 - 8) + 'px'; // -8 = half circle width
+
+  // B marker
+  const trackB = document.getElementById('track-b');
+  trackB.style.left = (bFrac * trackW + thumbW/2 - 8) + 'px';
+
+  // Tick marks
+  const container = document.getElementById('tick-container');
+  container.innerHTML = '';
+  _stopKms.forEach(sk => {
+    const frac = _totalKm > 0 ? Math.max(0,Math.min(1,sk/_totalKm)) : 0;
+    const px = frac * trackW + thumbW/2;
+    const tick = document.createElement('div');
+    tick.className = 'tick-mark';
+    tick.style.left = px + 'px';
+    container.appendChild(tick);
+  });
+}
+
+// ── fare display ───────────────────────────────────────────────────────────
+function updateFareDisplay() {
+  const vt = _route?.vehicle_type||'puj';
+  const distKm = _sliderKm;
+  _baseFare = calcFare(vt, distKm);
+  const discounted = _hasDiscount ? _baseFare * 0.8 : _baseFare;
+  const total = discounted + _tip;
+  const estMin = Math.floor((distKm/20)*60)+5;
+
+  // Summary card
+  document.getElementById('sc-mins').textContent = `${estMin} min`;
+  if (distKm < 1) {
+    document.getElementById('sc-dist').textContent = Math.round(distKm*1000)+' m';
+  } else {
+    document.getElementById('sc-dist').textContent = distKm.toFixed(1)+' km';
+  }
+
+  // Fare
+  document.getElementById('sc-fare').textContent = `₱${total.toFixed(2)}`;
+
+  // Badges
+  const discBadge = document.getElementById('sc-disc-badge');
+  const tipBadge  = document.getElementById('sc-tip-badge');
+  discBadge.style.display = _hasDiscount ? '' : 'none';
+  if (_tip > 0) {
+    tipBadge.style.display = '';
+    tipBadge.textContent = `+₱${_tip} tip`;
+  } else {
+    tipBadge.style.display = 'none';
+  }
+
+  // Strikethrough base fare
+  const baseFareEl = document.getElementById('sc-base-fare');
+  if (_hasDiscount || _tip > 0) {
+    baseFareEl.style.display = '';
+    baseFareEl.textContent = `₱${_baseFare.toFixed(2)} base`;
+  } else {
+    baseFareEl.style.display = 'none';
+  }
+
+  // Price bubble on slider
+  document.getElementById('price-bubble').textContent = `₱${_baseFare.toFixed(2)}`;
+}
+
+// ── discount / tip ─────────────────────────────────────────────────────────
+function toggleDiscount() {
+  _hasDiscount = !_hasDiscount;
+  const check = document.getElementById('disc-check');
+  check.classList.toggle('on', _hasDiscount);
+  updateFareDisplay();
+}
+
+function setTip(btn, amt) {
+  document.querySelectorAll('.tip-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _tip = amt;
+  updateFareDisplay();
+}
+
+// ── drop-off modal ─────────────────────────────────────────────────────────
+function buildTickMarks() {
+  // Tick marks are now built dynamically in updateSliderPositions() 
+  // This ensures they scale correctly with the slider width
+}
+
+function buildDropoffModal() {
+  const list = document.getElementById('dm-list');
+  list.innerHTML = '';
+  _stops.forEach((stop, i) => {
+    const isSelected = stop.name === _dropoffName;
+    const item = document.createElement('div');
+    item.className = 'dm-item' + (isSelected ? ' selected' : '');
+    item.innerHTML = `
+      <span class="dm-item-icon" style="color:${isSelected?'var(--primary)':'var(--outline)'}">${isSelected?'check_circle':'location_on'}</span>
+      <div>
+        <div class="dm-item-name">${escHtml(stop.name)}</div>
+        ${_stopKms[i]!=null?`<div class="dm-item-sub">${_stopKms[i].toFixed(1)} km from start</div>`:''}
+      </div>`;
+    item.addEventListener('click', () => selectStop(stop, i));
+    list.appendChild(item);
+  });
+}
+
+function selectStop(stop, idx) {
+  _dropoffName = stop.name;
+  _dropoffLat  = stop.lat;
+  _dropoffLng  = stop.lng;
+  _sliderKm    = _stopKms[idx];
+  document.getElementById('km-slider').value = _sliderKm;
+  syncDropoffDisplay();
+  updateSliderPositions();
+  if (_map) { moveMarkerB(stop.lat, stop.lng); drawHighlight(); }
+  buildDropoffModal();
+  closeDropoffModal();
+}
+
+function openDropoffModal() {
+  buildDropoffModal();
+  document.getElementById('dm-overlay').classList.add('show');
+}
+
+function closeDropoffModal(e) {
+  if (!e || e.target === document.getElementById('dm-overlay')) {
+    document.getElementById('dm-overlay').classList.remove('show');
+  }
+}
+
+// ── custom drop-off mode ───────────────────────────────────────────────────
+function toggleCustomMode(e) {
+  e.stopPropagation();
+  _isCustomMode = !_isCustomMode;
+  const btn = document.getElementById('custom-btn');
+  const circle = document.getElementById('custom-circle');
+  const val = document.getElementById('custom-val');
+  btn.classList.toggle('on', _isCustomMode);
+  circle.textContent = _isCustomMode ? 'check' : 'map';
+  val.textContent = _isCustomMode ? 'On' : 'Off';
+  document.getElementById('custom-toast').style.display = _isCustomMode ? 'flex' : 'none';
+}
+
+// ── map ────────────────────────────────────────────────────────────────────
+function initMap(plateFall) {
+  const s = _session;
+  const center = (s.lat&&s.lng) ? [s.lng, s.lat] : [123.7438, 13.1391];
+
+  _map = new maplibregl.Map({
+    container: 'map',
+    style: CARTO,
+    center, 
+    zoom: 13.5,
+    pitch: 55,           // 3D perspective matching Dart
+    bearing: -15,        // Rotated view matching Dart
+    attributionControl: false,
+    preserveDrawingBuffer: true,
+  });
+
+  _map.on('load', () => {
+    drawRoute();
+    placeBeacon(s, plateFall);
+    placeMarkerA();
+    const bPt = coordAtDistance(_sliderKm);
+    if (bPt) { placeMarkerB(bPt.lat, bPt.lng); }
+    drawHighlight();
+    fitBounds();
+  });
+
+  _map.on('click', e => {
+    if (!_isCustomMode) return;
+    const lat = e.lngLat.lat, lng = e.lngLat.lng;
+    const km  = projectToRoute(lat, lng);
+    _sliderKm = km;
+    const pt = coordAtDistance(km);
+    if (pt) { _dropoffLat=pt.lat; _dropoffLng=pt.lng; }
+    const ni = nearestStopIdx(_stops, km);
+    const dist = Math.abs(_stopKms[ni]-km);
+    _dropoffName = dist<0.15 ? (_stops[ni]?.name||'Custom Point') : 'Custom Point';
+    document.getElementById('km-slider').value = km;
+    syncDropoffDisplay();
+    updateSliderPositions();
+    if (pt) moveMarkerB(pt.lat, pt.lng);
+    drawHighlight();
+    // Exit custom mode after selection
+    _isCustomMode = false;
+    const btn = document.getElementById('custom-btn');
+    const circle = document.getElementById('custom-circle');
+    const val = document.getElementById('custom-val');
+    btn.classList.remove('on');
+    circle.textContent = 'map';
+    val.textContent = 'Off';
+    document.getElementById('custom-toast').style.display='none';
+  });
+}
+
+function drawRoute() {
+  if (!_flatCoords.length) return;
+  const col = _route?.color||'#0046C7';
+
+  _map.addSource('route-full',{type:'geojson',data:{type:'Feature',geometry:{type:'LineString',coordinates:_flatCoords}}});
+  _map.addLayer({id:'route-full-l',type:'line',source:'route-full',
+    layout:{'line-join':'round','line-cap':'round'},
+    paint:{'line-color':col,'line-width':5,'line-opacity':.35}
+  });
+  // Stop dots
+  const stopFeatures = _stops.map((s,i) => ({
+    type:'Feature', geometry:{type:'Point',coordinates:[s.lng,s.lat]},
+    properties:{name:s.name||`Stop ${i+1}`}
+  }));
+  _map.addSource('route-stops',{type:'geojson',data:{type:'FeatureCollection',features:stopFeatures}});
+  _map.addLayer({id:'route-stop-c',type:'circle',source:'route-stops',
+    paint:{'circle-radius':4,'circle-color':col,'circle-opacity':.6,'circle-stroke-width':1.5,'circle-stroke-color':'#fff'}
+  });
+}
+
+function drawHighlight() {
+  // Slice flatCoords from boardingKm to sliderKm
+  const fromKm = Math.min(_boardingKm, _sliderKm);
+  const toKm   = Math.max(_boardingKm, _sliderKm);
+  const seg    = sliceRouteCoords(fromKm, toKm);
+  const geo = {type:'Feature',geometry:{type:'LineString',coordinates:seg}};
+  try {_map.removeLayer('hl-glow');}catch{}
+  try {_map.removeLayer('hl-line');}catch{}
+  try {_map.removeSource('hl-src');}catch{}
+  if (seg.length < 2) return;
+  _map.addSource('hl-src',{type:'geojson',data:geo});
+  _map.addLayer({id:'hl-glow',type:'line',source:'hl-src',
+    layout:{'line-join':'round','line-cap':'round'},
+    paint:{'line-color':'#FBBF24','line-width':14,'line-opacity':.4,'line-blur':4}
+  });
+  _map.addLayer({id:'hl-line',type:'line',source:'hl-src',
+    layout:{'line-join':'round','line-cap':'round'},
+    paint:{'line-color':'#FBBF24','line-width':5,'line-opacity':.9}
+  });
+}
+
+function sliceRouteCoords(fromKm, toKm) {
+  if (!_flatCoords.length) return [];
+  const coords = [];
+  let cum = 0;
+  let inRange = false;
+  // Add the exact start point
+  const startPt = coordAtDistance(fromKm);
+  if (startPt) coords.push([startPt.lng, startPt.lat]);
+  for (let i=1;i<_flatCoords.length;i++) {
+    const a=_flatCoords[i-1], b=_flatCoords[i];
+    const seg=hav(a[1],a[0],b[1],b[0]);
+    const cumEnd=cum+seg;
+    if (cumEnd > fromKm && cum < toKm) {
+      if (!inRange) inRange=true;
+      if (cumEnd<=toKm) coords.push(b);
     }
+    if (cumEnd>=toKm) break;
+    cum=cumEnd;
   }
+  // Add exact end point
+  const endPt = coordAtDistance(toKm);
+  if (endPt) coords.push([endPt.lng, endPt.lat]);
+  return coords;
+}
 
-  function updateFareDisplay() {
-    const discounted = _baseFare*(1-_discountRate);
-    const total = discounted+_tip;
+function pinEl(label, color) {
+  const el = document.createElement('div');
+  el.className = 'pin-marker';
+  el.innerHTML = `<div class="pin-circle" style="background:${color}">${label}</div><div class="pin-tail" style="background:${color}"></div>`;
+  return el;
+}
 
-    if (_distKm>0) {
-      if (_distKm<1) { document.getElementById('fw-dist').textContent=Math.round(_distKm*1000); document.getElementById('fw-unit').textContent='m'; }
-      else           { document.getElementById('fw-dist').textContent=_distKm.toFixed(1); document.getElementById('fw-unit').textContent='km'; }
-    } else { document.getElementById('fw-dist').textContent='—'; document.getElementById('fw-unit').textContent=''; }
+function placeBeacon(s, plateFall) {
+  if (!s.lat||!s.lng) return;
+  const el = document.createElement('div');
+  el.className='jeep-beacon';
+  el.innerHTML='<div class="jeep-beacon-ring"></div><div class="jeep-beacon-core"><img src="assets/jeep.png" alt=""></div>';
+  _beaconMarker = new maplibregl.Marker({element:el,anchor:'center'}).setLngLat([s.lng,s.lat]).addTo(_map);
+}
 
-    document.getElementById('fw-fare').textContent = total>0 ? total.toFixed(2) : '—';
-  }
+function placeMarkerA() {
+  const bPt = coordAtDistance(_boardingKm);
+  if (!bPt) return;
+  if (_markerA) _markerA.remove();
+  _markerA = new maplibregl.Marker({element:pinEl('A','#22C55E'),anchor:'bottom'}).setLngLat([bPt.lng,bPt.lat]).addTo(_map);
+}
 
-  function setDiscount(btn, rate) {
-    btn.closest('.chip-grid').querySelectorAll('.chip').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    _discountRate=rate; updateFareDisplay();
-  }
-  function setTip(btn, amt) {
-    btn.closest('.tip-row').querySelectorAll('.tip-chip').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    _tip=amt;
-    document.getElementById('tip-display').textContent=`+₱${amt}`;
-    updateFareDisplay();
-  }
+function placeMarkerB(lat, lng) {
+  if (_markerB) _markerB.remove();
+  _markerB = new maplibregl.Marker({element:pinEl('B','#EF4444'),anchor:'bottom'}).setLngLat([lng,lat]).addTo(_map);
+}
 
-  // ── map ────────────────────────────────────────────────────────────────────
-  function initMap(plateFall) {
+function moveMarkerB(lat, lng) {
+  if (!_markerB) { placeMarkerB(lat, lng); return; }
+  _markerB.setLngLat([lng, lat]);
+}
+
+function fitBounds() {
+  const pts = _flatCoords.length ? _flatCoords : (_session.lat?[[_session.lng,_session.lat]]:[]);
+  if (!pts.length) return;
+  const lngs=pts.map(p=>p[0]), lats=pts.map(p=>p[1]);
+  _map.fitBounds([[Math.min(...lngs),Math.min(...lats)],[Math.max(...lngs),Math.max(...lats)]],
+    {padding:{top:30,bottom:40,left:40,right:40},maxZoom:15,duration:800});
+}
+
+// ── confirm ────────────────────────────────────────────────────────────────
+async function confirmBoard() {
+  if (_baseFare <= 0) { alert('Please select a drop-off point.'); return; }
+  const discounted = _hasDiscount ? _baseFare*0.8 : _baseFare;
+  const totalFare  = +(discounted+_tip).toFixed(2);
+
+  const btn = document.getElementById('confirm-btn');
+  const txt = document.getElementById('confirm-txt');
+  btn.disabled=true; txt.textContent='Processing…';
+
+  try {
     const s = _session;
-    const center = (s.lat&&s.lng) ? [s.lng, s.lat] : [123.7438, 13.1391];
-
-    _map = new maplibregl.Map({
-      container: 'map',
-      style: CARTO,
-      center, zoom: 14,
-      attributionControl: false,
-      pitchWithRotate: false,
+    await _sb.from('pasada_boardings').insert({
+      session_id:     s.id,
+      fare:           totalFare,
+      is_discount:    _hasDiscount,
+      payment_method: 'cash',
+      boarded_at:     new Date().toISOString(),
+      from_lat:       s.lat||null,
+      from_lng:       s.lng||null,
+      to_lat:         _dropoffLat||null,
+      to_lng:         _dropoffLng||null,
     });
+    await _sb.from('pasada_sessions')
+      .update({passenger_count:(s.passenger_count||0)+1})
+      .eq('id', s.id);
 
-    _map.on('load', () => {
-      drawRoute();
-      placeJeepBeacon(s, plateFall);
-      placeMarkerA();
-      if (_stops.length) {
-        const dropStop = _stops[_dropoffIdx];
-        if (dropStop) {
-          placeMarkerB(dropStop.lat, dropStop.lng);
-          drawHighlightPath(Math.min(_boardingIdx,_dropoffIdx), Math.max(_boardingIdx,_dropoffIdx));
-        }
-      }
-      // Fit to route or jeepney
-      fitBounds();
-    });
+    document.getElementById('suc-plate').textContent   = s.vehicle_plate||'—';
+    document.getElementById('suc-dropoff').textContent = _dropoffName;
+    const dist = _sliderKm;
+    document.getElementById('suc-dist').textContent = dist<1?`${Math.round(dist*1000)} m`:`${dist.toFixed(1)} km`;
+    document.getElementById('suc-fare').textContent  = `₱${totalFare.toFixed(2)}`;
+    document.getElementById('suc-time').textContent  = new Date().toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'});
+    if (_hasDiscount) document.getElementById('suc-disc-row').style.display='flex';
+
+    document.getElementById('hdr').style.display='none';
+    document.getElementById('map').style.display='none';
+    document.getElementById('sheet').style.display='none';
+    document.getElementById('success-screen').classList.add('show');
+  } catch(err) {
+    console.error(err);
+    alert('Failed to record boarding:\n'+(err.message||err));
+    btn.disabled=false; txt.textContent='Confirm & Pay';
   }
+}
 
-  function drawRoute() {
-    if (!_stops.length) return;
-    const coords = _stops.map(s=>[s.lng, s.lat]);
-    const col = _route?.color||'#0046C7';
-    _map.addSource('route-full', { type:'geojson', data:{ type:'Feature', geometry:{ type:'LineString', coordinates:coords } } });
-    _map.addLayer({ id:'route-full-line', type:'line', source:'route-full',
-      layout:{ 'line-join':'round','line-cap':'round' },
-      paint:{ 'line-color':col, 'line-width':4, 'line-opacity':.35 }
-    });
-    // Stop dots
-    _map.addSource('route-stops-src', { type:'geojson', data:{ type:'FeatureCollection', features:
-      _stops.map((s,i)=>({ type:'Feature', geometry:{ type:'Point', coordinates:[s.lng,s.lat] },
-        properties:{ name:s.name||`Stop ${i+1}` } }))
-    }});
-    _map.addLayer({ id:'route-stop-circles', type:'circle', source:'route-stops-src',
-      paint:{ 'circle-radius':4, 'circle-color':col, 'circle-opacity':.5, 'circle-stroke-width':1.5, 'circle-stroke-color':'#fff' }
-    });
-  }
+// ── helpers ────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
 
-  function drawHighlightPath(fromIdx, toIdx) {
-    if (!_stops.length) return;
-    const coords = _stops.slice(fromIdx, toIdx+1).map(s=>[s.lng, s.lat]);
-    const geo = { type:'Feature', geometry:{ type:'LineString', coordinates:coords } };
-    try { _map.removeLayer('ride-glow'); } catch{}
-    try { _map.removeLayer('ride-line'); } catch{}
-    try { _map.removeSource('ride-src'); } catch{}
-    _map.addSource('ride-src', { type:'geojson', data:geo });
-    _map.addLayer({ id:'ride-glow', type:'line', source:'ride-src',
-      layout:{ 'line-join':'round','line-cap':'round' },
-      paint:{ 'line-color':'#FACC15','line-width':14,'line-opacity':.45,'line-blur':4 }
-    });
-    _map.addLayer({ id:'ride-line', type:'line', source:'ride-src',
-      layout:{ 'line-join':'round','line-cap':'round' },
-      paint:{ 'line-color':'#FACC15','line-width':5,'line-opacity':1 }
-    });
-  }
-
-  function placeJeepBeacon(s, plateFall) {
-    if (!s.lat||!s.lng) return;
-    const el = document.createElement('div');
-    el.className = 'jeep-beacon';
-    el.innerHTML = `<div class="jeep-beacon-ring"></div><div class="jeep-beacon-core"><img src="assets/jeep.png" alt=""></div>`;
-    _beaconMarker = new maplibregl.Marker({ element:el, anchor:'center' }).setLngLat([s.lng, s.lat]).addTo(_map);
-  }
-
-  function _rideMarkerEl(label, color) {
-    const el = document.createElement('div');
-    el.className = 'ride-marker-el';
-    el.innerHTML = `<div class="ride-marker-pin">
-      <div class="ride-marker-circle" style="background:${color}">${label}</div>
-      <div class="ride-marker-tail" style="background:${color}"></div>
-    </div>`;
-    return el;
-  }
-
-  function placeMarkerA() {
-    if (!_stops.length) return;
-    const boarding = _session.lat&&_session.lng
-      ? { lat:_session.lat, lng:_session.lng }
-      : _stops[_boardingIdx];
-    if (!boarding) return;
-    if (_markerA) _markerA.remove();
-    _markerA = new maplibregl.Marker({ element:_rideMarkerEl('A','#16A34A'), anchor:'bottom-left' })
-      .setLngLat([boarding.lng, boarding.lat]).addTo(_map);
-  }
-
-  function placeMarkerB(lat, lng) {
-    if (_markerB) _markerB.remove();
-    _markerB = new maplibregl.Marker({ element:_rideMarkerEl('B','#DC2626'), anchor:'bottom-left' })
-      .setLngLat([lng, lat]).addTo(_map);
-  }
-
-  function moveMarkerB(lat, lng) {
-    if (!_markerB) { placeMarkerB(lat, lng); return; }
-    _markerB.setLngLat([lng, lat]);
-  }
-
-  function fitBounds() {
-    if (!_stops.length&&!_session.lat) return;
-    const pts = _stops.map(s=>[s.lng,s.lat]);
-    if (_session.lat&&_session.lng) pts.push([_session.lng,_session.lat]);
-    if (!pts.length) return;
-    const lngs=pts.map(p=>p[0]), lats=pts.map(p=>p[1]);
-    _map.fitBounds([[Math.min(...lngs),Math.min(...lats)],[Math.max(...lngs),Math.max(...lats)]],
-      { padding:{ top:20, bottom:20, left:30, right:30 }, maxZoom:15, duration:600 });
-  }
-
-  // ── confirm ────────────────────────────────────────────────────────────────
-  async function confirmBoard() {
-    const stop = _stops[_dropoffIdx];
-    if (_stops.length && !stop) { alert('Please select a drop-off stop.'); return; }
-
-    const discounted = _baseFare*(1-_discountRate);
-    const totalFare  = +(discounted+_tip).toFixed(2);
-    if (totalFare<=0) { alert('Unable to calculate fare. Please select a drop-off stop.'); return; }
-
-    const btn = document.getElementById('confirm-btn');
-    const txt = document.getElementById('confirm-txt');
-    btn.disabled=true; txt.textContent='Processing…';
-
-    try {
-      const s = _session;
-      await _supabase.from('pasada_boardings').insert({
-        session_id:     s.id,
-        fare:           totalFare,
-        is_discount:    _discountRate>0,
-        payment_method: 'cash',
-        boarded_at:     new Date().toISOString(),
-        from_lat:       s.lat||null,
-        from_lng:       s.lng||null,
-        to_lat:         stop?.lat||null,
-        to_lng:         stop?.lng||null,
-      });
-
-      await _supabase.from('pasada_sessions')
-        .update({ passenger_count:(s.passenger_count||0)+1 })
-        .eq('id', s.id);
-
-      const plate  = s.vehicle_plate||'—';
-      const driver = s.driver_name||'—';
-      const dropoff= stop?.name||'On board';
-      const distStr= _distKm>0?(_distKm<1?`${Math.round(_distKm*1000)} m`:`${_distKm.toFixed(1)} km`):'—';
-
-      document.getElementById('suc-plate').textContent   = plate;
-      document.getElementById('suc-driver').textContent  = driver;
-      document.getElementById('suc-dropoff').textContent = dropoff;
-      document.getElementById('suc-dist').textContent    = distStr;
-      document.getElementById('suc-fare').textContent    = `₱${totalFare.toFixed(2)}`;
-      document.getElementById('suc-time').textContent    = new Date().toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'});
-      if (_discountRate>0) {
-        document.getElementById('suc-discount-row').style.display='flex';
-        document.getElementById('suc-discount-label').textContent = `${Math.round(_discountRate*100)}% applied`;
-      }
-
-      document.getElementById('hdr').style.display='none';
-      document.getElementById('map').style.display='none';
-      document.getElementById('sheet').style.display='none';
-      document.getElementById('success-screen').classList.add('show');
-
-    } catch(err) {
-      console.error(err);
-      alert('Failed to record boarding:\n'+(err.message||err));
-      btn.disabled=false; txt.textContent='Confirm & Pay';
-    }
-  }
-  </script>
+// Recalculate slider positions on resize
+window.addEventListener('resize', () => {
+  if (_flatCoords.length) updateSliderPositions();
+});
+</script>
 </body>
 </html>
