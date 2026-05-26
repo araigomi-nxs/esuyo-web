@@ -1088,7 +1088,8 @@ function populateUI(plateFall) {
   const driver = s.driver_name||'Unknown Driver';
 
   // Header / banner
-  document.getElementById('hdr-plate').textContent = plate;
+  const hdrPlateEl = document.getElementById('hdr-plate');
+  if (hdrPlateEl) hdrPlateEl.textContent = plate;
   document.getElementById('ban-plate').textContent = plate;
   document.getElementById('ban-driver').textContent = driver;
 
