@@ -486,13 +486,16 @@ function openPasadaQr(plate, sessionId) {
     infoEl.innerHTML = rows;
   }
 
+  const boardUrl = `https://esuyo-web.vercel.app/board?session=${encodeURIComponent(sessionId)}&plate=${encodeURIComponent(plate)}`;
+  const qrSrc    = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&ecc=M&data=${encodeURIComponent(boardUrl)}`;
+
   const img = document.getElementById('pasada-qr-img');
   img.style.display = '';
-  img.src = `assets/${encodeURIComponent(plate)}.png`;
+  img.src = qrSrc;
   img.onerror = () => { img.style.display = 'none'; };
 
   const boardBtn = document.getElementById('pasada-qr-board-btn');
-  boardBtn.href = `board.html?session=${encodeURIComponent(sessionId)}&plate=${encodeURIComponent(plate)}`;
+  boardBtn.href = boardUrl;
   document.getElementById('pasada-qr-overlay').classList.remove('hidden');
 }
 

@@ -557,6 +557,41 @@
     margin-top:10px;
   }
 
+  /* ── QR Share Modal ──────────────────────── */
+  #qr-modal {
+    position:fixed;inset:0;z-index:600;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.55);backdrop-filter:blur(6px);
+    opacity:0;pointer-events:none;transition:opacity .2s;
+  }
+  #qr-modal.show { opacity:1;pointer-events:all; }
+  .qr-card {
+    background:#fff;border-radius:24px;padding:28px 24px 24px;
+    display:flex;flex-direction:column;align-items:center;gap:14px;
+    box-shadow:0 24px 64px rgba(0,0,0,.3);max-width:300px;width:90%;
+    transform:scale(.92);transition:transform .2s;
+  }
+  #qr-modal.show .qr-card { transform:scale(1); }
+  .qr-title { font-family:'Lexend',sans-serif;font-weight:800;font-size:1rem;color:var(--primary);text-align:center; }
+  .qr-sub { font-size:.72rem;color:var(--outline);text-align:center;font-family:'Plus Jakarta Sans',sans-serif; }
+  #qr-img { width:200px;height:200px;border-radius:12px;border:1px solid var(--out-var); }
+  .qr-plate-badge {
+    display:flex;align-items:center;gap:6px;background:rgba(0,70,199,.07);
+    border-radius:99px;padding:5px 14px;
+    font-family:'Lexend',sans-serif;font-weight:800;font-size:.82rem;color:var(--primary);
+  }
+  .qr-close-btn {
+    width:100%;height:44px;border-radius:12px;border:1px solid rgba(115,118,134,.25);
+    background:none;font-family:'Lexend',sans-serif;font-weight:700;font-size:.82rem;
+    color:var(--outline);cursor:pointer;
+  }
+  #hdr-qr-btn {
+    width:36px;height:36px;border-radius:50%;border:none;background:rgba(0,70,199,.08);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;
+    font-family:'Material Symbols Outlined';font-style:normal;font-size:20px;
+    font-variation-settings:'FILL' 0,'wght' 400;color:var(--primary);
+  }
+  #hdr-qr-btn:hover { background:rgba(0,70,199,.15); }
+
   /* ── Map markers ──────────────────────────── */
   .jeep-beacon { position:relative;width:36px;height:36px; }
   @keyframes br { 0%{transform:scale(.6);opacity:.9}100%{transform:scale(2.6);opacity:0} }
@@ -609,6 +644,20 @@
   <div id="hdr-title">Select Drop Off Point</div>
 </header>
 
+<!-- ── QR Share Modal ───────────────────────────── -->
+<div id="qr-modal" onclick="if(event.target===this)closeQrModal()">
+  <div class="qr-card">
+    <div class="qr-title">Scan to Board</div>
+    <div class="qr-sub">Share this QR so passengers can<br>select their drop-off directly.</div>
+    <img id="qr-img" src="" alt="QR Code">
+    <div class="qr-plate-badge">
+      <div class="live-dot"></div>
+      <span id="qr-plate-txt">—</span>
+    </div>
+    <button class="qr-close-btn" onclick="closeQrModal()">Close</button>
+  </div>
+</div>
+
 <!-- ── Map ──────────────────────────────────────── -->
 <div id="map">
   <div id="custom-toast" class="custom-mode-toast" style="display:none">
@@ -621,18 +670,9 @@
   <div class="pull"></div>
   <div class="sheet-inner">
 
-    <!-- Compact jeepney banner -->
-    <div class="jeep-banner-compact">
-      <img src="assets/jeep.png" class="jbc-img" alt="">
-      <div>
-        <div class="jbc-plate" id="ban-plate">—</div>
-        <div class="jbc-sub" id="ban-driver">—</div>
-      </div>
-      <div class="jbc-live">
-        <div class="live-dot"></div>
-        <span>LIVE</span>
-      </div>
-    </div>
+    <!-- ban-plate / ban-driver kept as hidden anchors for JS compat -->
+    <span id="ban-plate" style="display:none"></span>
+    <span id="ban-driver" style="display:none"></span>
 
     <!-- Route overview -->
     <div class="route-row">
@@ -1732,7 +1772,10 @@ function placeBeacon(s, plateFall) {
   const el = document.createElement('div');
   el.className='jeep-beacon';
   el.style.zIndex = 20;
+  el.style.cursor = 'pointer';
+  el.title = 'Tap to view QR';
   el.innerHTML='<div class="jeep-beacon-ring"></div><div class="jeep-beacon-core"><img src="assets/jeep.png" alt=""></div>';
+  el.addEventListener('click', () => openQrModal());
   _beaconMarker = new maplibregl.Marker({element:el,anchor:'center'}).setLngLat([s.lng,s.lat]).addTo(_map);
 }
 
@@ -1810,6 +1853,7 @@ async function confirmBoard() {
   // Vehicle Info rows
   let vinfoHtml = _cpInfoRow('directions_bus','Vehicle Type', vtLabel);
   vinfoHtml += _cpInfoRow('pin','Plate Number', s.vehicle_plate||'—');
+  vinfoHtml += _cpInfoRow('tag','Session ID', s.id||'—', 'mono');
   // Fetch driver details (color, cooperative, driver name)
   if (s.driver_id) {
     try {
@@ -1907,6 +1951,21 @@ async function doConfirmPayment() {
     confirmBtn.disabled=false; cancelBtn.disabled=false;
     txt.textContent=`Confirm & Pay ₱${totalFare.toFixed(2)}`;
   }
+}
+
+// ── QR modal ───────────────────────────────────────────────────────────────
+function openQrModal() {
+  const s = _session;
+  if (!s) return;
+  const plate = s.vehicle_plate || '';
+  const boardUrl = `https://esuyo-web.vercel.app/board?session=${encodeURIComponent(s.id)}&plate=${encodeURIComponent(plate)}`;
+  const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=10&ecc=M&data=${encodeURIComponent(boardUrl)}`;
+  document.getElementById('qr-img').src = qrApiUrl;
+  document.getElementById('qr-plate-txt').textContent = plate || 'Unknown';
+  document.getElementById('qr-modal').classList.add('show');
+}
+function closeQrModal() {
+  document.getElementById('qr-modal').classList.remove('show');
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────
