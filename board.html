@@ -1975,24 +1975,15 @@ window.addEventListener('resize', () => {
       </div>
     </div>
 
-    <!-- Payment Method -->
-    <div class="cp-card">
-      <div class="cp-card-lbl">Payment Method</div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span class="cp-info-icon">account_balance_wallet</span>
-        <span style="font-family:'Lexend',sans-serif;font-weight:700;font-size:.82rem;color:var(--on-surf)">Cash</span>
-      </div>
-    </div>
-
     <!-- Passenger Name -->
-    <div class="cp-card">
-      <div class="cp-card-lbl">Passenger Name <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:.65rem">(optional)</span></div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span class="cp-info-icon">person</span>
+    <div class="cp-card" style="border:2px solid rgba(0,70,199,.25);background:rgba(0,70,199,.04);">
+      <div class="cp-card-lbl" style="color:var(--primary)">Your Name <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:.65rem;color:var(--outline)">(optional)</span></div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="cp-info-icon" style="color:var(--primary);font-size:20px">person</span>
         <input id="cp-name-input" type="text" placeholder="Anonymous"
-          style="flex:1;border:none;outline:none;font-family:'Lexend',sans-serif;font-weight:600;
-                 font-size:.82rem;color:var(--on-surf);background:transparent;min-width:0;
-                 padding:4px 0;border-bottom:1.5px solid var(--out-var);">
+          style="flex:1;border:none;outline:none;font-family:'Lexend',sans-serif;font-weight:700;
+                 font-size:.95rem;color:var(--on-surf);background:transparent;min-width:0;
+                 padding:6px 0;border-bottom:2px solid rgba(0,70,199,.35);">
       </div>
     </div>
 
