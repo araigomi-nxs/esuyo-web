@@ -162,7 +162,8 @@
     display: block; width: 100%; height: 44px;
     background: transparent; outline: none; cursor: pointer;
     padding: 0; margin: 0;
-    /* CSS custom props driven by updateSliderPositions() */
+    /* CSS custom props driven by updateSliderPositions()
+       --a-pct = boarding point (A), --b-pct = drop-off thumb (B) */
     --a-pct: 0%; --b-pct: 100%;
   }
   /* WebKit (Chrome / Safari / iOS) */
@@ -170,8 +171,10 @@
     height: 6px; border-radius: 3px;
     background: linear-gradient(
       to right,
-      var(--primary)              var(--b-pct),
-      rgba(115,118,134,.22)       var(--b-pct)
+      rgba(115,118,134,.22)       var(--a-pct),   /* grey: pre-boarded */
+      var(--primary)              var(--a-pct),   /* blue starts at A  */
+      var(--primary)              var(--b-pct),   /* blue: trip A → B  */
+      rgba(115,118,134,.22)       var(--b-pct)    /* grey: remaining   */
     );
   }
   #km-slider::-webkit-slider-thumb {
@@ -220,6 +223,8 @@
     background: var(--primary);
     box-shadow: 0 0 0 4px rgba(0,70,199,.18);
   }
+  /* Stops before the boarding point — dimmed, non-interactive */
+  .tick-mark.pre-boarding { background: rgba(115,118,134,.15); cursor: default; }
   /* Stop-name micro-label beneath each tick */
   .tick-label {
     position: absolute; top: 103px;
@@ -783,11 +788,23 @@ function projectToRoute(lat,lng) {
   return bestKm;
 }
 
-// Compute each stop's km by projecting its lat/lng onto the already-built
-// _flatCoords geometry. Using projectToRoute() guarantees the km values are
-// in exactly the same coordinate space as coordAtDistance() and
-// totalRouteKm() — no NaN risk from malformed roadPathFromPrev data.
+// Compute each stop's cumulative km along the route.
+//
+// Strategy: prefer roadDistFromPrev cumulative sums (correct for loop routes —
+// the last stop is geographically near stop 0, so a raw lat/lng projection
+// would wrongly map it back to km ≈ 0).  Fall back to projectToRoute() only
+// when roadDistFromPrev is absent from all stops.
 function buildStopKms() {
+  const hasRoadDist = _stops.length > 1 &&
+    _stops.slice(1).some(s => typeof s.roadDistFromPrev === 'number' && s.roadDistFromPrev > 0);
+  if (hasRoadDist) {
+    let cum = 0;
+    return _stops.map(s => {
+      cum += (typeof s.roadDistFromPrev === 'number' ? s.roadDistFromPrev : 0);
+      return cum;
+    });
+  }
+  // Fallback: project lat/lng onto _flatCoords (non-loop routes, legacy data)
   return _stops.map(s => projectToRoute(s.lat, s.lng));
 }
 
@@ -827,13 +844,55 @@ function showError(msg) {
   document.getElementById('error-screen').classList.add('show');
 }
 
+// ── demo mode (no Supabase needed — use ?demo=1) ───────────────────────────
+function loadDemoData() {
+  _session = {
+    id: 'demo', status: 'active',
+    vehicle_plate: 'EJC-7314', driver_name: 'Mang Rudy',
+    lat: 13.1430, lng: 123.7400,   // jeepney partway along route
+    passenger_count: 0,
+  };
+  _route = {
+    id: 'demo', name: 'Legazpi – Daraga Loop',
+    vehicle_type: 'puj', color: '#0046C7',
+    stops: [
+      { name: 'Legazpi City Hall', lat: 13.1395, lng: 123.7434 },
+      { name: 'Legazpi Port',      lat: 13.1308, lng: 123.7491 },
+      { name: 'Embarcadero',       lat: 13.1275, lng: 123.7463 },
+      { name: 'Albay Park',        lat: 13.1430, lng: 123.7380 },
+      { name: 'Daraga Market',     lat: 13.1542, lng: 123.7205 },
+      { name: 'Cagsawa Ruins',     lat: 13.1612, lng: 123.6882 },
+      { name: 'Daraga Church',     lat: 13.1677, lng: 123.6978 },
+    ]
+  };
+  _stops       = _route.stops.map(s => ({ ...s }));
+  _flatCoords  = buildFlatCoords();
+  _totalKm     = totalRouteKm(_flatCoords);
+  _stopKms     = buildStopKms();
+  const lastStopKm = _stopKms[_stopKms.length - 1] ?? _totalKm;
+  // Same nearest-stop boarding snap as the real init (handles demo loop routes)
+  { let minGeo = Infinity;
+    _stops.forEach(s => { const d=hav(_session.lat,_session.lng,s.lat,s.lng); if(d<minGeo)minGeo=d; });
+    let bestBKm = null;
+    _stops.forEach((s,i) => { const d=hav(_session.lat,_session.lng,s.lat,s.lng);
+      if(d<=minGeo+0.05&&(bestBKm===null||_stopKms[i]<bestBKm))bestBKm=_stopKms[i]; });
+    _boardingKm = Math.max(0, Math.min(bestBKm??0, lastStopKm));
+  }
+  _sliderKm    = lastStopKm;
+  _landmarks   = [];
+  populateUI('');
+  initMap('');
+}
+
 // ── init ───────────────────────────────────────────────────────────────────
 async function initBoard() {
+  const p = new URLSearchParams(location.search);
+  if (p.get('demo') === '1') { loadDemoData(); return; }
+
   const cfg = window.ESUYO_CONFIG;
   if (!cfg||!window.supabase) { showError('App not initialized.'); return; }
   _sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
-  const p = new URLSearchParams(location.search);
   const sessionId = p.get('session');
   const plateFall = p.get('plate')||'';
   if (!sessionId) { showError('No session ID provided.'); return; }
@@ -860,11 +919,29 @@ async function initBoard() {
   _totalKm = totalRouteKm(_flatCoords);
   _stopKms = buildStopKms();   // cumulative km per stop, guaranteed in route order
 
-  // Jeepney boarding position — projected onto flat coords (same haversine basis)
-  _boardingKm = (session.lat&&session.lng) ? projectToRoute(session.lat, session.lng) : 0;
-  // Clamp to [0, lastStopKm] so the slider range always makes sense
+  // Boarding km: snap to the nearest stop by geography.
+  // Among stops within 50 m of the closest match, prefer the LOWEST km
+  // (earliest stop). This ensures loop-route terminals map to the START of the
+  // next loop rather than the END of the previous one, where first and last
+  // stops share the same physical location.
   const _lastStopKm = _stopKms.length ? _stopKms[_stopKms.length - 1] : _totalKm;
-  _boardingKm = Math.max(0, Math.min(_boardingKm, _lastStopKm));
+  if (session.lat && session.lng && _stops.length) {
+    let minGeo = Infinity;
+    _stops.forEach(s => {
+      const d = hav(session.lat, session.lng, s.lat, s.lng);
+      if (d < minGeo) minGeo = d;
+    });
+    let bestBKm = null;
+    _stops.forEach((s, i) => {
+      const d = hav(session.lat, session.lng, s.lat, s.lng);
+      if (d <= minGeo + 0.05 && (bestBKm === null || _stopKms[i] < bestBKm)) {
+        bestBKm = _stopKms[i];
+      }
+    });
+    _boardingKm = Math.max(0, Math.min(bestBKm ?? 0, _lastStopKm));
+  } else {
+    _boardingKm = 0;
+  }
   // Start B at the last stop
   _sliderKm = _lastStopKm;
 
@@ -910,13 +987,16 @@ function populateUI(plateFall) {
   if (_stops.length) {
     const lastStopKm = _stopKms.length ? _stopKms[_stopKms.length - 1] : _totalKm;
     const slider = document.getElementById('km-slider');
-    slider.min   = _boardingKm;
-    slider.max   = lastStopKm > _boardingKm ? lastStopKm : _boardingKm + 0.1;
-    slider.step  = Math.max((lastStopKm - _boardingKm) / 500, 0.001);
+    slider.min   = 0;                                       // full route: start
+    slider.max   = lastStopKm > 0 ? lastStopKm : (_totalKm > 0 ? _totalKm : 1);
+    slider.step  = Math.max(lastStopKm / 500, 0.001);
     slider.value = lastStopKm;   // start B at last stop (like Dart initialises to last stop)
     // input fires continuously while dragging (Dart onChanged)
+    // Clamp: B can never go before the boarding point (A)
     slider.addEventListener('input', () => {
-      _sliderKm = +slider.value;
+      const raw = +slider.value;
+      _sliderKm = Math.max(_boardingKm, raw);
+      if (raw < _boardingKm) slider.value = _sliderKm; // push thumb back to A
       onSliderInput();
     });
     // change fires on release (Dart onChangeEnd) — snap to nearest stop
@@ -1039,27 +1119,32 @@ function updateSliderPositions() {
   if (!wrapW) return;
 
   const lastStopKm = _stopKms.length ? _stopKms[_stopKms.length - 1] : _totalKm;
-  const range    = lastStopKm - _boardingKm;
-  const relFrac  = range > 0 ? Math.max(0, Math.min(1, (_sliderKm - _boardingKm) / range)) : 0;
+  // Full route range (0 → lastStopKm): every pixel equals the same real-world distance
+  const range    = lastStopKm > 0 ? lastStopKm : 1;
+  const aFrac    = Math.max(0, Math.min(1, _boardingKm / range));   // A position
+  const relFrac  = Math.max(0, Math.min(1, _sliderKm   / range));   // B position
+  const aPct     = (aFrac   * 100).toFixed(2) + '%';
   const pct      = (relFrac * 100).toFixed(2) + '%';
 
   // Sync native input value so visual thumb moves
   slider.value = _sliderKm;
-  // Drive WebKit gradient (blue 0% → B%, grey B% → 100%)
+  // Drive WebKit gradient: grey→A (pre-boarded) | blue A→B (trip) | grey B→end
+  slider.style.setProperty('--a-pct', aPct);
   slider.style.setProperty('--b-pct', pct);
 
   // Thumb geometry — 28px wide; centre travels from thumbR to (wrapW-thumbR)
   const thumbR = 14; // half of 28px thumb
   const trackW = wrapW - 2 * thumbR;
-  const bPx    = thumbR + relFrac * trackW;  // px from slider-wrap left
+  const aPx    = thumbR + aFrac   * trackW;  // A marker px from slider-wrap left
+  const bPx    = thumbR + relFrac * trackW;  // B thumb  px from slider-wrap left
 
   // Price bubble — centred above thumb
   const bubble = document.getElementById('price-bubble');
   const bw = bubble.offsetWidth || 56;
   bubble.style.left = Math.max(0, Math.min(bPx - bw / 2, wrapW - bw)) + 'px';
 
-  // A marker — always at the leftmost thumb position (boarding point)
-  document.getElementById('track-a').style.left = Math.max(0, thumbR - 8) + 'px';
+  // A marker — at boarding point proportional position on the full route
+  document.getElementById('track-a').style.left = Math.max(0, aPx - 8) + 'px';
 
   // B marker — centred under thumb
   document.getElementById('track-b').style.left = Math.max(0, bPx - 8) + 'px';
@@ -1072,22 +1157,24 @@ function updateSliderPositions() {
   container.innerHTML = '';
 
   // Decide label density: show all if ≤8 stops, else every other stop
-  const totalTicks  = _stopKms.filter(sk => sk >= _boardingKm - 0.05).length;
+  // Use only forward stops for density count (pre-boarding stops are dimmed)
+  const totalTicks  = _stopKms.length;
   const labelEvery  = totalTicks <= 8 ? 1 : 2;
-  let   visibleIdx  = 0;
+  let   visibleIdx  = 0;   // only counts forward (non-pre-boarding) stops
 
   _stopKms.forEach((sk, i) => {
-    if (sk < _boardingKm - 0.05) return;
-    const stop     = _stops[i];
-    const f        = range > 0 ? Math.max(0, Math.min(1, (sk - _boardingKm) / range)) : 0;
-    const pxLeft   = thumbR + f * trackW;
-    const isActive = Math.abs(sk - _sliderKm) < 0.05;
+    const stop          = _stops[i];
+    const isPreBoarding = sk < _boardingKm - 0.05;
+    // Position along full route (0 → lastStopKm) — same coordinate space as thumb
+    const f             = range > 0 ? Math.max(0, Math.min(1, sk / range)) : 0;
+    const pxLeft        = thumbR + f * trackW;
+    const isActive      = !isPreBoarding && Math.abs(sk - _sliderKm) < 0.05;
 
     // ── pillar ──────────────────────────────────────────────────────────
     const tick = document.createElement('div');
-    tick.className  = 'tick-mark' + (isActive ? ' active' : '');
+    tick.className  = 'tick-mark' + (isActive ? ' active' : '') + (isPreBoarding ? ' pre-boarding' : '');
     tick.style.left = pxLeft + 'px';
-    if (stop) {
+    if (stop && !isPreBoarding) {
       tick.title = stop.name;
       const clickStop = stop, clickIdx = i;
       tick.addEventListener('click',    ()  => selectStop(clickStop, clickIdx));
@@ -1096,7 +1183,7 @@ function updateSliderPositions() {
     container.appendChild(tick);
 
     // ── label (truncated to ~10 chars) ──────────────────────────────────
-    const showLabel = (visibleIdx % labelEvery === 0) || isActive;
+    const showLabel = (!isPreBoarding && visibleIdx % labelEvery === 0) || isActive;
     if (showLabel && stop?.name) {
       const label = document.createElement('div');
       label.className  = 'tick-label' + (isActive ? ' active' : '');
@@ -1106,7 +1193,7 @@ function updateSliderPositions() {
       label.textContent = raw.length > 10 ? raw.substring(0, 9) + '…' : raw;
       container.appendChild(label);
     }
-    visibleIdx++;
+    if (!isPreBoarding) visibleIdx++;
   });
 }
 
