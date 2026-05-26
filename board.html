@@ -893,8 +893,27 @@ async function initBoard() {
   if (!cfg||!window.supabase) { showError('App not initialized.'); return; }
   _sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
-  const sessionId = p.get('session');
+  let sessionId = p.get('session');
   const plateFall = p.get('plate')||'';
+
+  // If no session ID but a plate is given, look up the active session by plate.
+  if (!sessionId && plateFall) {
+    const trimmed = plateFall.trim().toUpperCase();
+    const { data:found } = await _sb
+      .from('pasada_sessions')
+      .select('id')
+      .eq('status','active')
+      .ilike('vehicle_plate', `%${trimmed}%`)
+      .limit(1)
+      .maybeSingle();
+    if (found?.id) {
+      sessionId = found.id;
+    } else {
+      showError(`No active jeepney found for plate "${plateFall}".`);
+      return;
+    }
+  }
+
   if (!sessionId) { showError('No session ID provided.'); return; }
 
   const { data:session, error:sErr } = await _sb
