@@ -314,7 +314,15 @@
   .sc-left { flex: 1; min-width: 0; }
   .sc-dest {
     font-family: 'Lexend', sans-serif; font-weight: 700; font-size: 1rem;
-    color: #fff; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    color: #fff; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sc-near-txt {
+    font-size: .72rem; color: rgba(255,255,255,.6); margin-bottom: 5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: none;
+  }
+  .pod-near {
+    font-size: .69rem; color: var(--outline); margin-top: 1px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: none;
   }
   .sc-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .sc-meta-item { display: flex; align-items: center; gap: 3px; }
@@ -471,6 +479,83 @@
   .rdiv { height:1px;background:var(--out-var);margin:8px 0;opacity:.4; }
   .rtot .val { font-family:'Lexend',sans-serif;font-size:1.2rem;font-weight:800;color:var(--primary); }
 
+  /* ── Confirm Payment Panel ───────────────── */
+  #confirm-panel {
+    position:fixed;inset:0;z-index:450;background:var(--surface);
+    transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);
+    display:flex;flex-direction:column;overflow:hidden;
+  }
+  #confirm-panel.show { transform:translateY(0); }
+  .cp-hdr {
+    position:sticky;top:0;z-index:10;background:rgba(250,250,250,.95);
+    backdrop-filter:blur(14px);display:flex;align-items:center;gap:4px;
+    padding:0 8px;height:52px;border-bottom:1px solid var(--out-var);flex-shrink:0;
+  }
+  .cp-hdr-back {
+    width:40px;height:40px;border-radius:50%;display:flex;align-items:center;
+    justify-content:center;background:none;border:none;cursor:pointer;
+    font-family:'Material Symbols Outlined';font-style:normal;font-size:24px;
+    font-variation-settings:'FILL' 0,'wght' 400;color:var(--primary);
+  }
+  .cp-hdr-title {
+    font-family:'Lexend',sans-serif;font-weight:700;font-size:1.05rem;color:var(--primary);
+  }
+  .cp-body { flex:1;overflow-y:auto;padding:20px 20px 40px;display:flex;flex-direction:column;gap:16px; }
+  .cp-card {
+    background:var(--surface);border-radius:16px;
+    border:1px solid rgba(195,197,215,.35);padding:16px;
+  }
+  .cp-card-lbl {
+    font-size:.62rem;font-weight:700;letter-spacing:1.2px;color:var(--outline);
+    font-family:'Plus Jakarta Sans',sans-serif;text-transform:uppercase;margin-bottom:12px;
+  }
+  .cp-ab-row { display:flex;align-items:flex-start;gap:12px;padding:4px 0; }
+  .cp-ab-circle {
+    width:30px;height:30px;border-radius:50%;display:flex;align-items:center;
+    justify-content:center;font-family:'Lexend',sans-serif;font-weight:700;
+    font-size:.65rem;color:#fff;flex-shrink:0;
+  }
+  .cp-ab-circle.a { background:#22C55E;box-shadow:0 0 0 5px rgba(34,197,94,.12); }
+  .cp-ab-circle.b { background:#EF4444;box-shadow:0 0 0 5px rgba(239,68,68,.12); }
+  .cp-ab-lbl { font-size:.65rem;color:var(--outline);font-family:'Plus Jakarta Sans',sans-serif; }
+  .cp-ab-val { font-family:'Lexend',sans-serif;font-weight:700;font-size:.82rem;color:var(--on-surf);margin-top:1px; }
+  .cp-divider { height:1px;background:rgba(195,197,215,.3);margin:10px 0; }
+  .cp-meta-row { display:flex;align-items:center;gap:18px;padding:4px 0; }
+  .cp-meta-item { display:flex;align-items:center;gap:5px; }
+  .cp-meta-icon {
+    font-family:'Material Symbols Outlined';font-style:normal;font-size:15px;
+    font-variation-settings:'FILL' 0,'wght' 400;
+  }
+  .cp-meta-val { font-family:'Lexend',sans-serif;font-weight:600;font-size:.75rem;color:var(--on-surf); }
+  .cp-info-row { display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(195,197,215,.2); }
+  .cp-info-row:last-child { border-bottom:none; }
+  .cp-info-icon {
+    font-family:'Material Symbols Outlined';font-style:normal;font-size:15px;
+    font-variation-settings:'FILL' 0,'wght' 400;color:var(--primary);flex-shrink:0;
+  }
+  .cp-info-lbl { font-size:.75rem;color:var(--outline);font-family:'Plus Jakarta Sans',sans-serif;flex:1; }
+  .cp-info-val { font-family:'Lexend',sans-serif;font-weight:600;font-size:.75rem;color:var(--on-surf);text-align:right; }
+  .cp-fare-row { display:flex;justify-content:space-between;align-items:center;padding:5px 0; }
+  .cp-fare-lbl { font-size:.75rem;color:var(--on-surf);font-family:'Plus Jakarta Sans',sans-serif; }
+  .cp-fare-val { font-family:'Lexend',sans-serif;font-weight:600;font-size:.75rem;color:var(--on-surf); }
+  .cp-fare-row.disc .cp-fare-lbl,.cp-fare-row.disc .cp-fare-val { color:var(--primary); }
+  .cp-fare-row.total { margin-top:4px; }
+  .cp-fare-row.total .cp-fare-lbl { font-weight:700;font-size:.88rem;color:var(--on-surf); }
+  .cp-fare-row.total .cp-fare-val { font-size:1.1rem;font-weight:800;color:var(--primary); }
+  .cp-confirm-btn {
+    width:100%;height:52px;border-radius:12px;border:none;background:var(--primary);
+    color:#fff;font-family:'Lexend',sans-serif;font-weight:700;font-size:.82rem;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;
+    transition:opacity .15s;
+  }
+  .cp-confirm-btn:disabled { opacity:.55;cursor:not-allowed; }
+  .cp-cancel-btn {
+    width:100%;height:52px;border-radius:12px;background:none;
+    border:1px solid rgba(115,118,134,.3);color:var(--outline);
+    font-family:'Lexend',sans-serif;font-weight:700;font-size:.82rem;cursor:pointer;
+    margin-top:10px;
+  }
+
   /* ── Map markers ──────────────────────────── */
   .jeep-beacon { position:relative;width:36px;height:36px; }
   @keyframes br { 0%{transform:scale(.6);opacity:.9}100%{transform:scale(2.6);opacity:0} }
@@ -505,6 +590,7 @@
   <h2>Boarding Confirmed!</h2>
   <p>Your fare has been recorded. Show this screen to your driver.</p>
   <div class="receipt">
+    <div class="rr" id="suc-name-row"><span class="lbl">Passenger</span><span class="val" id="suc-name">—</span></div>
     <div class="rr"><span class="lbl">Jeepney</span><span class="val" id="suc-plate">—</span></div>
     <div class="rr"><span class="lbl">Drop-off</span><span class="val" id="suc-dropoff">—</span></div>
     <div class="rr"><span class="lbl">Distance</span><span class="val" id="suc-dist">—</span></div>
@@ -583,6 +669,7 @@
       <div class="pod-info">
         <div class="pod-label">STARTING POINT</div>
         <div class="pod-value" id="pod-a-value">Locating…</div>
+        <div class="pod-near" id="pod-a-near"></div>
       </div>
       <div class="pod-spinner" id="pod-a-spinner"></div>
     </div>
@@ -596,6 +683,7 @@
         <div class="pod-info">
           <div class="pod-label">DROP OFF</div>
           <div class="pod-value green" id="pod-b-value">—</div>
+          <div class="pod-near" id="pod-b-near"></div>
         </div>
         <span class="b-pod-arrow" style="font-family:'Material Symbols Outlined',sans-serif;font-size:20px;font-style:normal;font-variation-settings:'FILL' 0,'wght' 400;">expand_more</span>
       </button>
@@ -611,6 +699,7 @@
     <div class="summary-card">
       <div class="sc-left">
         <div class="sc-dest" id="sc-dest">—</div>
+        <div class="sc-near-txt" id="sc-near"></div>
         <div class="sc-meta">
           <div class="sc-meta-item">
             <span class="sc-meta-icon" style="font-family:'Material Symbols Outlined',sans-serif;font-size:16px;font-style:normal;font-variation-settings:'FILL' 0,'wght' 400;">schedule</span>
@@ -813,6 +902,29 @@ function colorMap(str) {
   return m[(str||'').toLowerCase()]||(str&&str.startsWith('#')?str:'#9CA3AF');
 }
 
+// ── Nearest landmark helper ────────────────────────────────────────────────
+function nearestLandmark(lat, lng, maxKm = 0.35) {
+  if (!_landmarks.length || lat == null || lng == null) return null;
+  let best = null, bestD = Infinity;
+  for (const l of _landmarks) {
+    const d = hav(lat, lng, l.lat, l.lng);
+    if (d < bestD) { bestD = d; best = l; }
+  }
+  return (best && bestD <= maxKm) ? best : null;
+}
+
+function setNearEl(id, lm) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (lm) {
+    el.textContent = `near ${lm.name}`;
+    el.style.display = 'block';
+  } else {
+    el.textContent = '';
+    el.style.display = 'none';
+  }
+}
+
 // ── Reverse geocode (Nominatim, no key needed) ─────────────────────────────
 async function reverseGeocode(lat, lng) {
   try {
@@ -964,8 +1076,8 @@ async function initBoard() {
   // Start B at the last stop
   _sliderKm = _lastStopKm;
 
-  // Load landmarks near this route
-  const { data:landmarks } = await _sb.from('landmarks').select('*').limit(50);
+  // Load landmarks
+  const { data:landmarks } = await _sb.from('landmarks').select('*').limit(200);
   _landmarks = (landmarks||[]).filter(l=>l.lat!=null&&l.lng!=null);
 
   populateUI(plateFall);
@@ -990,8 +1102,12 @@ function populateUI(plateFall) {
 
   // A pod
   const boardingStop = _stops[nearestStopIdx(_stops, _boardingKm)];
-  document.getElementById('pod-a-value').textContent = boardingStop?.name||'Jeepney Location';
+  const boardingName = boardingStop?.name||'Jeepney Location';
+  document.getElementById('pod-a-value').textContent = boardingName;
   document.getElementById('pod-a-spinner').style.display = 'none';
+  // Nearest landmark to boarding point
+  const lmA = nearestLandmark(_session?.lat ?? boardingStop?.lat, _session?.lng ?? boardingStop?.lng);
+  setNearEl('pod-a-near', (lmA && lmA.name !== boardingName) ? lmA : null);
 
   // B pod initial
   const lastStop = _stops[_stops.length-1];
@@ -1052,6 +1168,15 @@ function nearestStopIdx(stops, km) {
 function syncDropoffDisplay() {
   document.getElementById('pod-b-value').textContent = _dropoffName;
   document.getElementById('sc-dest').textContent = _dropoffName;
+  // Nearest landmark subtitle for drop-off
+  const lmB = nearestLandmark(_dropoffLat, _dropoffLng);
+  const showLmB = lmB && lmB.name !== _dropoffName;
+  setNearEl('pod-b-near', showLmB ? lmB : null);
+  const scNear = document.getElementById('sc-near');
+  if (scNear) {
+    if (showLmB) { scNear.textContent = `near ${lmB.name}`; scNear.style.display='block'; }
+    else { scNear.textContent=''; scNear.style.display='none'; }
+  }
   updateFareDisplay();
 }
 
@@ -1104,7 +1229,8 @@ function onSliderInput() {
       if (Math.abs(_sliderKm - cKm) > 0.05) return; // slider moved — stale
       const name = await reverseGeocode(cLat, cLng);
       if (Math.abs(_sliderKm - cKm) > 0.05) return; // moved while awaiting
-      _dropoffName = name || `Route point ${cKm.toFixed(2)} km`;
+      const lmFall = nearestLandmark(cLat, cLng, 0.2);
+      _dropoffName = name || (lmFall ? lmFall.name : `Route point ${cKm.toFixed(2)} km`);
       syncDropoffDisplay();
     }, 500);
   }
@@ -1439,16 +1565,87 @@ function drawRoute() {
     paint:{'circle-radius':4,'circle-color':col,'circle-opacity':.6,'circle-stroke-width':1.5,'circle-stroke-color':'#fff'}
   });
 
-  // Landmarks
+  // Landmarks — category-coloured markers with labels + click popup
+  const _LCAT_COLOR = {
+    hospital:'#F44336', school:'#42A5F5', church:'#BA68C8', gov:'#90A4AE',
+    terminal:'#FF9800', airport:'#00BCD4', mall:'#E91E63', bank:'#66BB6A',
+    market:'#FF7043', park:'#8BC34A'
+  };
+  const _LCAT_ICON = {
+    hospital:'local_hospital', school:'school', church:'church', gov:'account_balance',
+    terminal:'directions_bus', airport:'flight', mall:'shopping_bag', bank:'account_balance_wallet',
+    market:'storefront', park:'park'
+  };
   const landmarkFeatures = _landmarks.map(l => ({
     type:'Feature', geometry:{type:'Point',coordinates:[l.lng,l.lat]},
-    properties:{name:l.name||'Landmark', type:'landmark'}
+    properties:{
+      name:    l.name||'Landmark',
+      category:l.category||'other',
+      address: l.address||'',
+      color:   _LCAT_COLOR[l.category]||'#9575CD'
+    }
   }));
   if (landmarkFeatures.length) {
     _map.addSource('landmarks',{type:'geojson',data:{type:'FeatureCollection',features:landmarkFeatures}});
-    _map.addLayer({id:'landmarks-layer',type:'circle',source:'landmarks',
-      paint:{'circle-radius':3,'circle-color':'#9CA3AF','circle-opacity':.5,'circle-stroke-width':1,'circle-stroke-color':'#fff'}
+
+    // Outer glow ring
+    _map.addLayer({id:'landmarks-glow',type:'circle',source:'landmarks',
+      paint:{
+        'circle-radius':['interpolate',['linear'],['zoom'],11,4,16,8],
+        'circle-color':['get','color'],
+        'circle-opacity':0.18,
+        'circle-stroke-width':0
+      }
     });
+    // Filled marker
+    _map.addLayer({id:'landmarks-circle',type:'circle',source:'landmarks',
+      paint:{
+        'circle-radius':['interpolate',['linear'],['zoom'],11,2.5,16,5],
+        'circle-color':['get','color'],
+        'circle-opacity':0.92,
+        'circle-stroke-width':1,
+        'circle-stroke-color':'#fff'
+      }
+    });
+    // Text labels (zoom 13.5+)
+    _map.addLayer({id:'landmarks-label',type:'symbol',source:'landmarks',
+      minzoom:13.5,
+      layout:{
+        'text-field':['get','name'],
+        'text-font':['Noto Sans Regular','Open Sans Regular'],
+        'text-size':11,
+        'text-offset':[0,1.3],
+        'text-anchor':'top',
+        'text-max-width':9,
+        'text-optional':true
+      },
+      paint:{
+        'text-color':'#1a1c1e',
+        'text-halo-color':'rgba(255,255,255,0.9)',
+        'text-halo-width':1.5
+      }
+    });
+
+    // Click → popup
+    _map.on('click','landmarks-circle', e => {
+      const f = e.features && e.features[0];
+      if (!f) return;
+      const {name, category, address, color} = f.properties;
+      const icon = _LCAT_ICON[category]||'place';
+      new maplibregl.Popup({closeButton:true, maxWidth:'220px', className:'lm-popup'})
+        .setLngLat(f.geometry.coordinates.slice())
+        .setHTML(`<div style="font-family:'Plus Jakarta Sans',sans-serif;padding:2px 0">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span style="font-family:'Material Symbols Outlined';font-style:normal;font-size:16px;font-variation-settings:'FILL' 1,'wght' 400;color:${color};line-height:1">${icon}</span>
+            <span style="font-weight:700;font-size:.85rem;color:#1a1c1e">${escHtml(name)}</span>
+          </div>
+          ${category&&category!=='other'?`<div style="font-size:.72rem;color:#737686;text-transform:capitalize">${category}</div>`:''}
+          ${address?`<div style="font-size:.72rem;color:#434654;margin-top:3px">${escHtml(address)}</div>`:''}
+        </div>`)
+        .addTo(_map);
+    });
+    _map.on('mouseenter','landmarks-circle',()=>{ _map.getCanvas().style.cursor='pointer'; });
+    _map.on('mouseleave','landmarks-circle',()=>{ _map.getCanvas().style.cursor=''; });
   }
 }
 
@@ -1571,15 +1768,104 @@ function fitBounds() {
     {padding:{top:30,bottom:40,left:40,right:40},maxZoom:15,duration:800});
 }
 
-// ── confirm ────────────────────────────────────────────────────────────────
+// ── confirm panel ──────────────────────────────────────────────────────────
+const _VTYPE_LABEL = {
+  'puj':'Traditional Jeepney','mpuj':'Modern Jeepney',
+  'pub-city':'City Bus (Ordinary)','pub-city-ac':'City Bus (Aircon)',
+  'uv-express':'UV Express'
+};
+
+function _cpInfoRow(icon, label, value) {
+  return `<div class="cp-info-row">
+    <span class="cp-info-icon">${icon}</span>
+    <span class="cp-info-lbl">${escHtml(label)}</span>
+    <span class="cp-info-val">${escHtml(value||'—')}</span>
+  </div>`;
+}
+
+function _cpFareRow(label, amount, cls='') {
+  const neg = amount < 0;
+  const fmt = `₱${Math.abs(amount).toFixed(2)}`;
+  return `<div class="cp-fare-row ${cls}">
+    <span class="cp-fare-lbl">${escHtml(label)}</span>
+    <span class="cp-fare-val">${neg?'-':''}${fmt}</span>
+  </div>`;
+}
+
 async function confirmBoard() {
   if (_baseFare <= 0) { alert('Please select a drop-off point.'); return; }
+
+  const discounted = _hasDiscount ? _baseFare*0.8 : _baseFare;
+  const totalFare  = +(discounted+_tip).toFixed(2);
+  const dist       = Math.max(0, _sliderKm - _boardingKm);
+  const mins       = document.getElementById('sc-mins')?.textContent||'—';
+  const s          = _session;
+  const vtLabel    = _VTYPE_LABEL[_route?.vehicle_type]||'Traditional Jeepney';
+
+  // Populate Trip Details
+  document.getElementById('cp-from').textContent  = document.getElementById('pod-a-value')?.textContent||'—';
+  document.getElementById('cp-to').textContent    = _dropoffName;
+  document.getElementById('cp-dist').textContent  = dist<1?`${Math.round(dist*1000)} m`:`${dist.toFixed(2)} km`;
+  document.getElementById('cp-mins').textContent  = mins;
+  document.getElementById('cp-vtype').textContent = vtLabel;
+
+  // Vehicle Info rows
+  let vinfoHtml = _cpInfoRow('directions_bus','Vehicle Type', vtLabel);
+  vinfoHtml += _cpInfoRow('pin','Plate Number', s.vehicle_plate||'—');
+  // Fetch driver details (color, cooperative, driver name)
+  if (s.driver_id) {
+    try {
+      const [acct, det] = await Promise.all([
+        _sb.from('accounts').select('full_name').eq('id', s.driver_id).maybeSingle(),
+        _sb.from('driver_details').select('vehicle_color,cooperative').eq('driver_id', s.driver_id).maybeSingle()
+      ]);
+      vinfoHtml += _cpInfoRow('palette', 'Vehicle Color', det?.data?.vehicle_color||'—');
+      vinfoHtml += _cpInfoRow('route',   'Registered Route', _route?.name||'—');
+      vinfoHtml += _cpInfoRow('business','Cooperative', det?.data?.cooperative||'—');
+      vinfoHtml += _cpInfoRow('person',  'Driver', acct?.data?.full_name||'—');
+    } catch(_) {
+      vinfoHtml += _cpInfoRow('route', 'Registered Route', _route?.name||'—');
+    }
+  } else {
+    vinfoHtml += _cpInfoRow('route', 'Registered Route', _route?.name||'—');
+  }
+  document.getElementById('cp-vinfo').innerHTML = vinfoHtml;
+
+  // Fare Breakdown rows
+  let fareHtml = _cpFareRow(`Base Fare (${dist.toFixed(2)} km)`, _baseFare);
+  if (_hasDiscount) {
+    fareHtml += _cpFareRow('Discount (20%)', -(_baseFare*0.2), 'disc');
+    fareHtml += _cpFareRow('Fare', discounted);
+  }
+  if (_tip > 0) fareHtml += _cpFareRow('Tip', _tip);
+  document.getElementById('cp-fare-rows').innerHTML = fareHtml;
+  document.getElementById('cp-total').textContent = `₱${totalFare.toFixed(2)}`;
+
+  // Update confirm button label
+  document.getElementById('cp-confirm-txt').textContent = `Confirm & Pay ₱${totalFare.toFixed(2)}`;
+  document.getElementById('cp-confirm-btn').disabled = false;
+  document.getElementById('cp-cancel-btn').disabled  = false;
+
+  // Show panel
+  document.getElementById('confirm-panel').classList.add('show');
+}
+
+function closeConfirmPanel() {
+  document.getElementById('confirm-panel').classList.remove('show');
+}
+
+async function doConfirmPayment() {
   const discounted = _hasDiscount ? _baseFare*0.8 : _baseFare;
   const totalFare  = +(discounted+_tip).toFixed(2);
 
-  const btn = document.getElementById('confirm-btn');
-  const txt = document.getElementById('confirm-txt');
-  btn.disabled=true; txt.textContent='Processing…';
+  const confirmBtn = document.getElementById('cp-confirm-btn');
+  const cancelBtn  = document.getElementById('cp-cancel-btn');
+  const txt = document.getElementById('cp-confirm-txt');
+  confirmBtn.disabled=true; cancelBtn.disabled=true;
+  txt.textContent='Processing…';
+
+  const rawName = (document.getElementById('cp-name-input')?.value||'').trim();
+  const passengerName = rawName || null; // null → "Anonymous" in spirit; column default is NULL
 
   try {
     const s = _session;
@@ -1593,27 +1879,34 @@ async function confirmBoard() {
       from_lng:       s.lng||null,
       to_lat:         _dropoffLat||null,
       to_lng:         _dropoffLng||null,
+      passenger_name: passengerName,
     });
     await _sb.from('pasada_sessions')
       .update({passenger_count:(s.passenger_count||0)+1})
       .eq('id', s.id);
 
+    // Populate success screen
+    const dist = Math.max(0, _sliderKm - _boardingKm);
+    const displayName = passengerName || 'Anonymous';
+    document.getElementById('suc-name').textContent    = displayName;
     document.getElementById('suc-plate').textContent   = s.vehicle_plate||'—';
     document.getElementById('suc-dropoff').textContent = _dropoffName;
-    const dist = _sliderKm;
-    document.getElementById('suc-dist').textContent = dist<1?`${Math.round(dist*1000)} m`:`${dist.toFixed(1)} km`;
-    document.getElementById('suc-fare').textContent  = `₱${totalFare.toFixed(2)}`;
-    document.getElementById('suc-time').textContent  = new Date().toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'});
+    document.getElementById('suc-dist').textContent    = dist<1?`${Math.round(dist*1000)} m`:`${dist.toFixed(1)} km`;
+    document.getElementById('suc-fare').textContent    = `₱${totalFare.toFixed(2)}`;
+    document.getElementById('suc-time').textContent    = new Date().toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'});
     if (_hasDiscount) document.getElementById('suc-disc-row').style.display='flex';
 
-    document.getElementById('hdr').style.display='none';
-    document.getElementById('map').style.display='none';
-    document.getElementById('sheet').style.display='none';
+    // Hide everything, show success
+    document.getElementById('confirm-panel').classList.remove('show');
+    document.getElementById('hdr').style.display   = 'none';
+    document.getElementById('map').style.display   = 'none';
+    document.getElementById('sheet').style.display = 'none';
     document.getElementById('success-screen').classList.add('show');
   } catch(err) {
     console.error(err);
     alert('Failed to record boarding:\n'+(err.message||err));
-    btn.disabled=false; txt.textContent='Confirm & Pay';
+    confirmBtn.disabled=false; cancelBtn.disabled=false;
+    txt.textContent=`Confirm & Pay ₱${totalFare.toFixed(2)}`;
   }
 }
 
@@ -1627,5 +1920,93 @@ window.addEventListener('resize', () => {
   if (_flatCoords.length) updateSliderPositions();
 });
 </script>
+
+<!-- ── Confirm Payment Panel ─────────────────────────────────────── -->
+<div id="confirm-panel">
+  <div class="cp-hdr">
+    <button class="cp-hdr-back" onclick="closeConfirmPanel()">arrow_back</button>
+    <div class="cp-hdr-title">Confirm Payment</div>
+  </div>
+  <div class="cp-body">
+
+    <!-- Trip Details -->
+    <div class="cp-card">
+      <div class="cp-card-lbl">Trip Details</div>
+      <div class="cp-ab-row">
+        <div class="cp-ab-circle a">A</div>
+        <div><div class="cp-ab-lbl">Starting Point</div><div class="cp-ab-val" id="cp-from">—</div></div>
+      </div>
+      <div class="cp-divider"></div>
+      <div class="cp-ab-row">
+        <div class="cp-ab-circle b">B</div>
+        <div><div class="cp-ab-lbl">Drop-off Point</div><div class="cp-ab-val" id="cp-to">—</div></div>
+      </div>
+      <div class="cp-divider"></div>
+      <div class="cp-meta-row">
+        <div class="cp-meta-item">
+          <span class="cp-meta-icon" style="color:var(--primary)">straighten</span>
+          <span class="cp-meta-val" id="cp-dist">—</span>
+        </div>
+        <div class="cp-meta-item">
+          <span class="cp-meta-icon" style="color:var(--outline)">schedule</span>
+          <span class="cp-meta-val" id="cp-mins">—</span>
+        </div>
+        <div class="cp-meta-item">
+          <span class="cp-meta-icon" style="color:var(--outline)">directions_bus</span>
+          <span class="cp-meta-val" id="cp-vtype">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vehicle Information -->
+    <div class="cp-card">
+      <div class="cp-card-lbl">Vehicle Information</div>
+      <div id="cp-vinfo"></div>
+    </div>
+
+    <!-- Fare Breakdown -->
+    <div class="cp-card">
+      <div class="cp-card-lbl">Fare Breakdown</div>
+      <div id="cp-fare-rows"></div>
+      <div class="cp-divider"></div>
+      <div class="cp-fare-row total">
+        <span class="cp-fare-lbl">Total Amount</span>
+        <span class="cp-fare-val" id="cp-total">—</span>
+      </div>
+    </div>
+
+    <!-- Payment Method -->
+    <div class="cp-card">
+      <div class="cp-card-lbl">Payment Method</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="cp-info-icon">account_balance_wallet</span>
+        <span style="font-family:'Lexend',sans-serif;font-weight:700;font-size:.82rem;color:var(--on-surf)">Cash</span>
+      </div>
+    </div>
+
+    <!-- Passenger Name -->
+    <div class="cp-card">
+      <div class="cp-card-lbl">Passenger Name <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:.65rem">(optional)</span></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="cp-info-icon">person</span>
+        <input id="cp-name-input" type="text" placeholder="Anonymous"
+          style="flex:1;border:none;outline:none;font-family:'Lexend',sans-serif;font-weight:600;
+                 font-size:.82rem;color:var(--on-surf);background:transparent;min-width:0;
+                 padding:4px 0;border-bottom:1.5px solid var(--out-var);">
+      </div>
+    </div>
+
+    <!-- Buttons -->
+    <div>
+      <button class="cp-confirm-btn" id="cp-confirm-btn" onclick="doConfirmPayment()">
+        <span id="cp-confirm-txt">Confirm &amp; Pay</span>
+        <span style="font-family:'Material Symbols Outlined';font-style:normal;font-size:20px;font-variation-settings:'FILL' 0,'wght' 400">arrow_forward</span>
+      </button>
+      <button class="cp-cancel-btn" id="cp-cancel-btn" onclick="closeConfirmPanel()">Cancel</button>
+    </div>
+
+  </div>
+</div>
+
 </body>
 </html>
