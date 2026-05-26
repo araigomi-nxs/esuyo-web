@@ -535,6 +535,7 @@
   }
   .cp-info-lbl { font-size:.75rem;color:var(--outline);font-family:'Plus Jakarta Sans',sans-serif;flex:1; }
   .cp-info-val { font-family:'Lexend',sans-serif;font-weight:600;font-size:.75rem;color:var(--on-surf);text-align:right; }
+  .cp-info-val.mono { font-family:monospace;font-size:.68rem;color:var(--outline);letter-spacing:.01em;word-break:break-all;text-align:right; }
   .cp-fare-row { display:flex;justify-content:space-between;align-items:center;padding:5px 0; }
   .cp-fare-lbl { font-size:.75rem;color:var(--on-surf);font-family:'Plus Jakarta Sans',sans-serif; }
   .cp-fare-val { font-family:'Lexend',sans-serif;font-weight:600;font-size:.75rem;color:var(--on-surf); }
@@ -606,10 +607,6 @@
 <header id="hdr">
   <a href="/" id="hdr-back">arrow_back</a>
   <div id="hdr-title">Select Drop Off Point</div>
-  <div class="hdr-plate-pill">
-    <div class="live-dot"></div>
-    <span id="hdr-plate">—</span>
-  </div>
 </header>
 
 <!-- ── Map ──────────────────────────────────────── -->
@@ -1775,11 +1772,11 @@ const _VTYPE_LABEL = {
   'uv-express':'UV Express'
 };
 
-function _cpInfoRow(icon, label, value) {
+function _cpInfoRow(icon, label, value, valClass='') {
   return `<div class="cp-info-row">
     <span class="cp-info-icon">${icon}</span>
     <span class="cp-info-lbl">${escHtml(label)}</span>
-    <span class="cp-info-val">${escHtml(value||'—')}</span>
+    <span class="cp-info-val ${valClass}">${escHtml(value||'—')}</span>
   </div>`;
 }
 
@@ -1822,7 +1819,8 @@ async function confirmBoard() {
       vinfoHtml += _cpInfoRow('palette', 'Vehicle Color', det?.data?.vehicle_color||'—');
       vinfoHtml += _cpInfoRow('route',   'Registered Route', _route?.name||'—');
       vinfoHtml += _cpInfoRow('business','Cooperative', det?.data?.cooperative||'—');
-      vinfoHtml += _cpInfoRow('person',  'Driver', acct?.data?.full_name||'—');
+      const driverName = acct?.data?.full_name;
+      if (driverName) vinfoHtml += _cpInfoRow('person', 'Driver', driverName);
     } catch(_) {
       vinfoHtml += _cpInfoRow('route', 'Registered Route', _route?.name||'—');
     }
@@ -1865,7 +1863,7 @@ async function doConfirmPayment() {
   txt.textContent='Processing…';
 
   const rawName = (document.getElementById('cp-name-input')?.value||'').trim();
-  const passengerName = rawName || null; // null → "Anonymous" in spirit; column default is NULL
+  const passengerName = rawName || 'anon';
 
   try {
     const s = _session;
