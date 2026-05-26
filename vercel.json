@@ -2,6 +2,9 @@
   "buildCommand": "node build.js",
   "outputDirectory": ".",
   "framework": null,
+  "rewrites": [
+    { "source": "/board", "destination": "/board.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",
