@@ -952,7 +952,10 @@ function addGreenery() {
       'source-layer': 'landcover',
       filter: ['in', ['get', 'class'], ['literal', ['grass', 'wood', 'scrub', 'wetland']]],
       paint: {
-        'fill-color': '#8ED35C',
+        'fill-color': ['interpolate', ['linear'], ['zoom'],
+          8,  '#3d7a28',
+          14, '#72bb42'
+        ],
         'fill-opacity': 0.9,
         'fill-antialias': true
       }
@@ -966,7 +969,10 @@ function addGreenery() {
       'source-layer': 'landuse',
       filter: ['in', ['get', 'class'], ['literal', ['park', 'grass', 'forest', 'meadow', 'garden', 'farmland']]],
       paint: {
-        'fill-color': '#548618',
+        'fill-color': ['interpolate', ['linear'], ['zoom'],
+          8,  '#1e5214',
+          14, '#3d7a28'
+        ],
         'fill-opacity': 0.95,
         'fill-antialias': true
       }
@@ -4043,7 +4049,7 @@ function applyCartoGreen() {
       id.includes('scrub') || id.includes('forest') || id.includes('garden') ||
       id.includes('green') || id.includes('meadow') || id.includes('landcover');
     if (isGreen) {
-      try { map.setPaintProperty(id, 'fill-color', '#A1CB5C'); } catch { }
+      try { map.setPaintProperty(id, 'fill-color', ['interpolate', ['linear'], ['zoom'], 8, '#4d8c38', 14, '#7aba48']); } catch { }
       try { map.setPaintProperty(id, 'fill-opacity', 0.5); } catch { }
     }
   });
@@ -4093,7 +4099,7 @@ function applyWhiteTheme() {
         id.includes('forest') || id.includes('scrub') || id.includes('garden') ||
         id.includes('national') || id.includes('meadow') || id.includes('green');
       if (isGreen) {
-        try { map.setPaintProperty(id, 'fill-color', '#9ED65F'); } catch { }
+        try { map.setPaintProperty(id, 'fill-color', ['interpolate', ['linear'], ['zoom'], 8, '#4a9038', 14, '#78bd48']); } catch { }
       } else {
         try { map.setPaintProperty(id, 'fill-color', '#f9f9f8'); } catch { }
       }
