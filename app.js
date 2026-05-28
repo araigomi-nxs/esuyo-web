@@ -952,7 +952,7 @@ function addGreenery() {
       'source-layer': 'landcover',
       filter: ['in', ['get', 'class'], ['literal', ['grass', 'wood', 'scrub', 'wetland']]],
       paint: {
-        'fill-color': '#68C47A',
+        'fill-color': '#8ED35C',
         'fill-opacity': 0.9,
         'fill-antialias': true
       }
@@ -966,7 +966,7 @@ function addGreenery() {
       'source-layer': 'landuse',
       filter: ['in', ['get', 'class'], ['literal', ['park', 'grass', 'forest', 'meadow', 'garden', 'farmland']]],
       paint: {
-        'fill-color': '#1B5E20',
+        'fill-color': '#548618',
         'fill-opacity': 0.95,
         'fill-antialias': true
       }
@@ -4043,7 +4043,7 @@ function applyCartoGreen() {
       id.includes('scrub') || id.includes('forest') || id.includes('garden') ||
       id.includes('green') || id.includes('meadow') || id.includes('landcover');
     if (isGreen) {
-      try { map.setPaintProperty(id, 'fill-color', '#81B97A'); } catch { }
+      try { map.setPaintProperty(id, 'fill-color', '#A1CB5C'); } catch { }
       try { map.setPaintProperty(id, 'fill-opacity', 0.5); } catch { }
     }
   });
@@ -4093,7 +4093,7 @@ function applyWhiteTheme() {
         id.includes('forest') || id.includes('scrub') || id.includes('garden') ||
         id.includes('national') || id.includes('meadow') || id.includes('green');
       if (isGreen) {
-        try { map.setPaintProperty(id, 'fill-color', '#7ec87e'); } catch { }
+        try { map.setPaintProperty(id, 'fill-color', '#9ED65F'); } catch { }
       } else {
         try { map.setPaintProperty(id, 'fill-color', '#f9f9f8'); } catch { }
       }
